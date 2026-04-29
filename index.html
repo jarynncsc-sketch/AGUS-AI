@@ -712,38 +712,9 @@
     #display-panel{background:rgba(255,255,255,0.2);backdrop-filter:blur(8px);padding:25px 30px;border-radius:12px;color:#004080;line-height:2;font-size:1.2rem;transition:background 0.3s ease,box-shadow 0.3s ease;}
     .lp-right{width:42%;background:var(--white);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:60px 40px;position:relative;overflow:hidden;text-align:center;}
     .water-drop-bg{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:80%;height:80%;opacity:1;pointer-events:none;z-index:1;}
-.lp-logo {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  margin-bottom: 40px;
-  z-index: 5;
-}
-.lp-logo-icon {
-  width: 80px;
-  height: 80px;
-  margin-bottom: 20px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  overflow: hidden;
-}
-.lp-logo-icon img {
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-  display: block;
-}
-.lp-logo-name {
-  font-family: 'Syne', sans-serif;
-  font-size: 2.3rem;
-  font-weight: 800;
-  color: var(--teal-1);
-  letter-spacing: 1.5px;
-  line-height: 1.2;
-  margin-top: 0;
-}
+    .lp-logo{display:flex;flex-direction:column;align-items:center;margin-bottom:34px;z-index:5;}
+    .lp-logo-icon{width:66px;height:66px;margin-bottom:11px;}
+    .lp-logo-name{font-family:'Syne',sans-serif;font-size:2.3rem;font-weight:800;color:var(--teal-1);letter-spacing:1.5px;}
     .lp-form{width:100%;max-width:340px;z-index:5;margin:0 auto;}
     .fg{position:relative;margin-bottom:16px;}
     .fg .fi{position:absolute;left:13px;top:50%;transform:translateY(-50%);color:var(--txt-l);display:flex;}
@@ -1240,8 +1211,7 @@
 <div class="water-drop-bg"></div>
     <div class="lp-logo">
       <div class="lp-logo-icon">
-        <!-- REPLACED logo with external GitHub image -->
-<img src="FINAL LOGO DESIGN 2025 - Copy (1).png" alt="AGUS Logo" style="width:100%; height:100%; object-fit: contain; display: block;">
+      <img src="FINAL LOGO DESIGN 2025 - Copy (1).png" alt="AGUS Logo" style="width:100%; height:100%; object-fit: contain; display: block;">
       </div>
       <div class="lp-logo-name">AGUS</div>
     </div>
@@ -1296,7 +1266,7 @@
       <div class="resize-handle left"></div>
       <div class="resize-handle right"></div>
       <div class="sheet-header"><span id="sheet-title"></span><button onclick="closeSheet()">&#10005;</button></div>
-      <div class="sheet-body"><table id="sheet-table"><thead></thead><tbody></tbody><table></div>
+      <div class="sheet-body"><table id="sheet-table"><thead></thead><tbody></tbody></table></div>
     </div>
 <div id="welcome-user-topright">
   <div id="datetime-display">     <span id="date-display" class="date-layer"></span>     <span id="time-display" class="time-layer"></span> </div>
