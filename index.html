@@ -1609,30 +1609,7 @@ var _autoShutoffLog     = JSON.parse(localStorage.getItem('autoShutoffLog')     
 //    togglePump call includes them (fixes missing coords after toggle) ───────
 var deviceCoordinatesCache = {};
 
-// ── Resolve coordinates for a device.
-//    1st: deviceCoordinatesCache (populated from getDashboardData)
-//    2nd: last sheet row that has lat/lng (copied into cache for next time)
-function getCoordsForDevice(deviceName) {
-  var cached = deviceCoordinatesCache[deviceName];
-  if (cached && cached.latitude && cached.longitude) {
-    return Promise.resolve(cached);
-  }
-  return apiGet('getSheetData', { sheet: deviceName }).then(function(rows) {
-    if (!rows || !rows.length) return { latitude: '', longitude: '' };
-    for (var i = rows.length - 1; i >= 0; i--) {
-      var r = rows[i];
-      var keys = Object.keys(r);
-      var latKey = keys.find(function(k) { return /^lat(itude)?$/i.test(k.trim()); });
-      var lngKey = keys.find(function(k) { return /^lo?n(g(itude)?)?$|^lng$/i.test(k.trim()); });
-      if (latKey && lngKey && r[latKey] && r[lngKey]) {
-        var found = { latitude: String(r[latKey]), longitude: String(r[lngKey]) };
-        deviceCoordinatesCache[deviceName] = found; // cache so next toggle is instant
-        return found;
-      }
-    }
-    return { latitude: '', longitude: '' };
-  }).catch(function() { return { latitude: '', longitude: '' }; });
-}
+
 
 function togglePw() { var i = document.getElementById('password'); i.type = i.type === 'password' ? 'text' : 'password'; }
 function escapeForAttr(s) { return String(s || '').replace(/'/g, "\\'").replace(/"/g, '&quot;'); }
@@ -2416,14 +2393,10 @@ function updateDeviceList(devices) {
           localStorage.setItem('reservoirAutoShutoff', JSON.stringify(reservoirAutoShutoffState));
         }
         localStorage.setItem('desired_' + d.device, ns);
-        // Copy lat/lng from cache or last sheet row, then push and fire
+        OfflineQueue.push({ device: d.device, state: ns, latitude: d.latitude || '', longitude: d.longitude || '' });
+        localStorage.setItem('OfflineQueue', JSON.stringify(OfflineQueue));
+        processOfflineQueue();
         updateDeviceList(devices);
-        var _dev = d.device, _ns = ns;
-        getCoordsForDevice(_dev).then(function(coords) {
-          OfflineQueue.push({ device: _dev, state: _ns, latitude: coords.latitude, longitude: coords.longitude });
-          localStorage.setItem('OfflineQueue', JSON.stringify(OfflineQueue));
-          processOfflineQueue();
-        });
       });
       li.addEventListener('click', function(e){ if (e.target.tagName.toLowerCase() !== 'input') selectDevice(d.device); });
       // ─── Pumping Station audio alarm ──────────────────────────────────
@@ -2514,18 +2487,15 @@ function autoShutoffPumps(devices) {
 
       _addAutoShutoffLog({ pump: cfg.pump, reservoir: cfg.reservoir, level: lv, shutoffLevel: shutoff, action: 'AUTO-OFF', timestamp: ts });
 
-      var _pump_off = cfg.pump;
-      getCoordsForDevice(_pump_off).then(function(coords) {
-        if (userToken) {
-          apiPost('togglePump', { device: _pump_off, token: userToken, reason: 'AUTO_RESERVOIR_FULL', latitude: coords.latitude, longitude: coords.longitude })
-            .then(function(r) { if (r && r.success) updateDashboard(); })
-            .catch(function(e) { console.warn('[AutoControl] togglePump failed:', e); });
-        } else {
-          localStorage.setItem('desired_' + _pump_off, 'OFF');
-          OfflineQueue.push({ device: _pump_off, state: 'OFF', latitude: coords.latitude, longitude: coords.longitude });
-          localStorage.setItem('OfflineQueue', JSON.stringify(OfflineQueue));
-        }
-      });
+      if (userToken) {
+        apiPost('togglePump', { device: cfg.pump, token: userToken, reason: 'AUTO_RESERVOIR_FULL', latitude: '', longitude: '' })
+          .then(function(r) { if (r && r.success) updateDashboard(); })
+          .catch(function(e) { console.warn('[AutoControl] togglePump failed:', e); });
+      } else {
+        localStorage.setItem('desired_' + cfg.pump, 'OFF');
+        OfflineQueue.push({ device: cfg.pump, state: 'OFF', latitude: '', longitude: '' });
+        localStorage.setItem('OfflineQueue', JSON.stringify(OfflineQueue));
+      }
 
     // ── Trigger AUTO-RESUME (turn pump back ON) ──────────────────────────
     } else if (lv <= resume && autoOffEntry) {
@@ -2544,26 +2514,22 @@ function autoShutoffPumps(devices) {
         localStorage.setItem('confirmed_' + cfg.pump, 'ON');
 
         // ── 3. Send toggle-ON command to server ──────────────────────────
-        var _pump_on = cfg.pump;
-        getCoordsForDevice(_pump_on).then(function(coords) {
-          if (userToken) {
-            apiPost('togglePump', {
-              device: _pump_on, token: userToken,
-              reason: 'AUTO_RESERVOIR_RESUME',
-              latitude:  coords.latitude,
-              longitude: coords.longitude
-            }).then(function(r) {
-              if (r && r.success) {
-                localStorage.removeItem('desired_' + _pump_on);
-                updateDashboard();
-              }
-            }).catch(function(e) { console.warn('[AutoResume] togglePump ON failed:', e); });
-          } else {
-            // Offline – queue for sync
-            OfflineQueue.push({ device: _pump_on, state: 'ON', latitude: coords.latitude, longitude: coords.longitude });
-            localStorage.setItem('OfflineQueue', JSON.stringify(OfflineQueue));
-          }
-        });
+        if (userToken) {
+          apiPost('togglePump', {
+            device: cfg.pump, token: userToken,
+            reason: 'AUTO_RESERVOIR_RESUME',
+            latitude:  '',
+            longitude: ''
+          }).then(function(r) {
+            if (r && r.success) {
+              localStorage.removeItem('desired_' + cfg.pump);
+              updateDashboard();
+            }
+          }).catch(function(e) { console.warn('[AutoResume] togglePump ON failed:', e); });
+        } else {
+          OfflineQueue.push({ device: cfg.pump, state: 'ON', latitude: '', longitude: '' });
+          localStorage.setItem('OfflineQueue', JSON.stringify(OfflineQueue));
+        }
 
         // ── 4. Notify & log ──────────────────────────────────────────────
         showNotification('✅ AUTO-RESUME: ' + cfg.pump + ' turned back ON — ' + cfg.reservoir + ' dropped to ' + lv.toFixed(0) + ' m³ (resume level: ' + resume + ' m³)', 'success');
