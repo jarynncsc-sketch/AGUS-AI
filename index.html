@@ -176,7 +176,155 @@
       body { display: none !important; }
     }
   </style>
-  <!-- ═══ END SECURITY SHIELD ═══ -->
+  <!-- ═══ END SECURITY SHIELD LAYER 1 ═══ -->
+
+  <!-- ═══════════════════════════════════════════════════════════════
+       SECURITY SHIELD LAYER 2 — Advanced Threat Deterrence
+       ═══════════════════════════════════════════════════════════════ -->
+  <script>
+  (function() {
+    'use strict';
+
+    /* ══════════════════════════════════════════════════════
+       9. Debugger Trap — halts execution when DevTools open
+       ══════════════════════════════════════════════════════ */
+    var _dbgInterval = null;
+    function _startDebuggerTrap() {
+      if (_dbgInterval) return;
+      _dbgInterval = setInterval(function() {
+        (function() {
+          try { (function(c){if(('' + c / c).length !== 1 || c % 20 === 0) { (function(){}).constructor('debugger')(); } else { (function(){}).constructor('debugger')(); }})(1); } catch(e) {}
+        })();
+      }, 50);
+    }
+    _startDebuggerTrap();
+
+    /* ══════════════════════════════════════════════════════
+       10. Iframe Busting — Clickjacking Protection
+       ══════════════════════════════════════════════════════ */
+    try {
+      if (window.self !== window.top) {
+        // Running inside an iframe — break out or blank the page
+        window.top.location = window.self.location;
+      }
+    } catch(e) {
+      // Cross-origin iframe — hide content immediately
+      document.addEventListener('DOMContentLoaded', function() {
+        document.body.style.display = 'none';
+      });
+    }
+
+    /* ══════════════════════════════════════════════════════
+       11. Bot / Automation Detection (Selenium, Puppeteer)
+       ══════════════════════════════════════════════════════ */
+    document.addEventListener('DOMContentLoaded', function() {
+      var botFlags = [
+        navigator.webdriver,
+        window._phantom,
+        window.__nightmare,
+        window.callPhantom,
+        navigator.languages && navigator.languages.length === 0,
+        /HeadlessChrome/.test(navigator.userAgent),
+        /Electron/.test(navigator.userAgent)
+      ];
+      if (botFlags.some(Boolean)) {
+        document.body.innerHTML =
+          '<div style="display:flex;align-items:center;justify-content:center;height:100vh;background:#0f172a;font-family:sans-serif;">' +
+          '<div style="text-align:center;color:#ef4444;"><div style="font-size:48px;">🤖</div>' +
+          '<div style="font-size:22px;font-weight:800;margin-top:16px;">Automated Access Denied</div>' +
+          '<div style="color:#94a3b8;margin-top:8px;font-size:13px;">This application does not permit automated browsing.</div></div></div>';
+      }
+    });
+
+    /* ══════════════════════════════════════════════════════
+       12. Multi-Tab Detection — block duplicate sessions
+       ══════════════════════════════════════════════════════ */
+    var _tabId = Math.random().toString(36).slice(2);
+    var _tabChannel = null;
+    try {
+      if (window.BroadcastChannel) {
+        _tabChannel = new BroadcastChannel('__agus_tab_lock__');
+        _tabChannel.postMessage({ type: 'TAB_OPEN', id: _tabId });
+        _tabChannel.addEventListener('message', function(e) {
+          if (e.data && e.data.type === 'TAB_OPEN' && e.data.id !== _tabId) {
+            // Another tab opened — show warning overlay
+            var ov = document.createElement('div');
+            ov.style.cssText = 'position:fixed;inset:0;z-index:2147483647;background:linear-gradient(135deg,#1e1b4b,#312e81);display:flex;align-items:center;justify-content:center;font-family:sans-serif;';
+            ov.innerHTML =
+              '<div style="text-align:center;color:#fff;padding:40px;">' +
+              '<div style="font-size:52px;">⚠️</div>' +
+              '<div style="font-size:22px;font-weight:800;margin:16px 0 10px;color:#a5b4fc;">Duplicate Session Detected</div>' +
+              '<div style="color:rgba(255,255,255,0.7);font-size:14px;max-width:320px;line-height:1.6;">AGUS is already open in another tab.<br>Please close this tab to continue.</div>' +
+              '<button onclick="window.close()" style="margin-top:24px;padding:10px 28px;background:#4f46e5;color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Close This Tab</button>' +
+              '</div>';
+            document.body.appendChild(ov);
+          }
+        });
+      }
+    } catch(e) {}
+
+    /* ══════════════════════════════════════════════════════
+       13. DOM Integrity Monitor — detect injected scripts
+       ══════════════════════════════════════════════════════ */
+    document.addEventListener('DOMContentLoaded', function() {
+      if (!window.MutationObserver) return;
+      var _observer = new MutationObserver(function(mutations) {
+        mutations.forEach(function(m) {
+          m.addedNodes.forEach(function(node) {
+            if (node.nodeType === 1) {
+              var tag = node.tagName ? node.tagName.toUpperCase() : '';
+              // Block injected script/iframe tags (not from the app itself)
+              if ((tag === 'SCRIPT' || tag === 'IFRAME') && !node.getAttribute('data-agus-trusted')) {
+                try { node.parentNode.removeChild(node); } catch(e) {}
+                console.clear();
+              }
+            }
+          });
+        });
+      });
+      _observer.observe(document.documentElement, { childList: true, subtree: true });
+    });
+
+
+        /* ══════════════════════════════════════════════════════
+       15. Post-Login Security Activation (Watermark)
+           Call window._secActivatePostLogin(username) after login
+       ══════════════════════════════════════════════════════ */
+    window._secActivatePostLogin = function(username) {
+      // Inject diagonal repeating watermark with username
+      var wm = document.createElement('div');
+      wm.id = '__sec_watermark__';
+      wm.setAttribute('data-agus-trusted', '1');
+      wm.style.cssText = [
+        'position:fixed', 'inset:0', 'z-index:9998',
+        'pointer-events:none', 'overflow:hidden',
+        'opacity:0.045'
+      ].join(';');
+
+      // Build SVG watermark tile
+      var svgText = encodeURIComponent(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="280" height="140">' +
+        '<text x="50%" y="45%" dominant-baseline="middle" text-anchor="middle" ' +
+        'transform="rotate(-30,140,70)" ' +
+        'font-family="sans-serif" font-size="15" font-weight="700" fill="#004080" opacity="1">' +
+        'AGUS · ' + username +
+        '</text>' +
+        '<text x="50%" y="75%" dominant-baseline="middle" text-anchor="middle" ' +
+        'transform="rotate(-30,140,70)" ' +
+        'font-family="sans-serif" font-size="10" fill="#004080" opacity="0.7">' +
+        new Date().toLocaleDateString() +
+        '</text>' +
+        '</svg>'
+      );
+      wm.style.backgroundImage = 'url("data:image/svg+xml,' + svgText + '")';
+      wm.style.backgroundRepeat = 'repeat';
+      document.body.appendChild(wm);
+
+    };
+
+  })();
+  </script>
+  <!-- ═══ END SECURITY SHIELD LAYER 2 ═══ -->
   <link rel="manifest" href="data:application/json,%7B%22name%22%3A%22AGUS%22%2C%22short_name%22%3A%22AGUS%22%2C%22start_url%22%3A%22.%22%2C%22display%22%3A%22standalone%22%2C%22background_color%22%3A%22%23ffffff%22%2C%22theme_color%22%3A%22%23004080%22%7D">
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,wght@0,300;0,400;0,500;0,600;0,700;1,400&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
   <style>
@@ -189,7 +337,7 @@
   body.dark-mode #dark-mode-btn span { color:#facc15!important; }
   </style>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/ol@7.5.0/ol.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js" data-agus-trusted="1"></script>
   <style>
     @media screen and (max-width: 900px) {
  
@@ -1706,8 +1854,8 @@
   ⚠ You are offline — commands are queued and will sync when connection is restored
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/ol@7.5.0/dist/ol.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/ol@7.5.0/dist/ol.js" data-agus-trusted="1"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3.0.1/dist/chartjs-plugin-annotation.min.js" data-agus-trusted="1"></script>
 <script>
   var activeFilters = new Set(['pressure','reservoir','pumping']);
 function toggleFilter(type){
@@ -1885,6 +2033,7 @@ function login() {
       userToken = token; loggedInUser = user;
       document.getElementById('loginPage').style.display = 'none';
       document.getElementById('dashboard').style.display = 'flex';
+      if (typeof window._secActivatePostLogin === 'function') { window._secActivatePostLogin(user); }
       document.getElementById('welcome-user-topright').innerHTML = '<span id="welcome-username">Welcome, ' + user + '</span><div id="datetime-display">     <span id="date-display" class="date-layer"></span>     <span id="time-display" class="time-layer"></span> </div>'; updateDateTime(); setInterval(updateDateTime, 1000);
       initDashboard();
       initPressureSettingsFromServer();
