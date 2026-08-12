@@ -238,7 +238,7 @@
   .stat .value{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--teal);}
   .stat .sub{font-size:11px;color:var(--text-faint);margin-top:3px;}
 
-  .chart-wrap{position:relative;height:240px;}
+  .chart-wrap{position:relative;height:430px;}
 
   .summary-table{width:100%;border-collapse:collapse;font-size:12.5px;}
   .summary-table th{
@@ -402,7 +402,7 @@
 
         <!-- RIGHT: Energy Audit Result -->
         <div class="panel">
-          <h3>Energy Audit Result <span class="hint" id="resultHint"></span></h3>
+          <h3>Energy Audit Result <span class="hint" id="resultHint">Excel-style pump performance graph</span></h3>
           <div class="stats-row" id="resultStats"></div>
           <div class="chart-card" style="margin-bottom:16px;">
             <div class="chart-wrap"><canvas id="resultChart"></canvas></div>
@@ -590,6 +590,9 @@ async function bootApp() {
   document.getElementById('usersNavBtn').classList.toggle('hidden', state.role === 'viewer');
   showAudits();
   try { await loadAudits(); } catch (err) { toast(err.message, true); }
+  // Load the pump-curve workbook data immediately so the Energy Audit chart
+  // can render the same engineering-style graph as the Excel workbook.
+  try { await loadCurvesFromServer(); } catch (e) { /* chart has a time-series fallback */ }
   try { if (state.role !== 'viewer') loadUsers(); } catch (e) { /* non-fatal */ }
 }
 
@@ -852,20 +855,321 @@ function avgVal(vals) {
   return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100;
 }
 
+function selectedPumpCurveSite(rows) {
+  if (!liveCurves || !liveCurves.length) return null;
+
+  // Prefer the explicit site filter. When "All" is selected, use the
+  // latest audit site so the result panel remains useful without mixing
+  // unrelated boreholes on one pump-performance graph.
+  const wanted = state.siteFilter !== 'All'
+    ? normalizeSite(state.siteFilter)
+    : normalizeSite((rows && rows.length ? rows[0].site : '') || '');
+
+  let site = liveCurves.find(s => normalizeSite(s.site) === wanted);
+  if (!site && wanted) {
+    site = liveCurves.find(s => {
+      const n = normalizeSite(s.site);
+      return n.indexOf(wanted) !== -1 || wanted.indexOf(n) !== -1;
+    });
+  }
+  return site || liveCurves[0] || null;
+}
+
+/**
+ * Main Energy Audit chart.
+ *
+ * This intentionally uses the same engineering presentation as the Excel
+ * "Graph <Borehole>" sheets:
+ *   X = Flow [m³/h]
+ *   Y = Head [mwc] / Power [kW] / Efficiency [%]
+ * with pump curves plus measured duty points.
+ *
+ * A single Y scale is used because that is how the supplied Excel chart
+ * presents the three curve families. The individual series remain clearly
+ * identified by colour, line style and legend.
+ */
 function renderResultChart(rows) {
   const canvas = document.getElementById('resultChart');
   if (!canvas || typeof Chart === 'undefined') return;
-  lastResultLog = rows;
+  lastResultLog = rows || [];
 
-  if (resultChartInstance) resultChartInstance.destroy();
+  if (resultChartInstance) {
+    resultChartInstance.destroy();
+    resultChartInstance = null;
+  }
 
+  const site = selectedPumpCurveSite(lastResultLog);
+
+  // If the workbook curve data has not arrived yet, keep the old audit trend
+  // chart as a temporary fallback. loadCurvesFromServer() will re-render it.
+  if (!site || !site.curves || !site.curves.length) {
+    renderAuditTrendFallback(canvas, lastResultLog);
+    return;
+  }
+
+  const tickColor = themeColor('--text-faint', '#8fafb5');
+  const gridColor = themeColor('--border-soft', '#e6f0f1');
+  const textColor = themeColor('--text-muted', '#57777d');
+  const teal = themeColor('--teal', '#0a7f93');
+  const amber = themeColor('--amber', '#c9821e');
+  const red = themeColor('--red', '#c8443f');
+  const blue = themeColor('--blue', '#2e7da6');
+  const green = themeColor('--green', '#2f9e6f');
+  const purple = themeColor('--purple', '#6d54ab');
+
+  const headColors = [amber, teal, red, purple, blue];
+  const freqDash = {
+    '50': [7, 4],
+    '55': [],
+    '58': [10, 4, 2, 4],
+    '60': [2, 4]
+  };
+
+  const datasets = [];
+
+  // Curves: Head is the primary family; Efficiency and Power are plotted on
+  // the same Y scale to visually reproduce the supplied Excel graph.
+  site.curves.forEach(c => {
+    const pts = c.x
+      .map((x, i) => ({ x: Number(x), y: c.y[i] === null ? null : Number(c.y[i]) }))
+      .filter(p => Number.isFinite(p.x) && p.y !== null && Number.isFinite(p.y));
+
+    if (!pts.length) return;
+
+    const freqMatch = String(c.label || '').match(/(\d+(?:\.\d+)?)\s*Hz/i);
+    const freq = freqMatch ? freqMatch[1] : '';
+    const fi = freq ? Math.max(0, ['50','55','58','60'].indexOf(freq)) : 0;
+
+    let borderColor = headColors[fi % headColors.length];
+    let borderDash = freqDash[freq] || [];
+    let width = 2.1;
+
+    if (c.type === 'eff') {
+      borderColor = green;
+      borderDash = [7, 4];
+      width = 1.6;
+    } else if (c.type === 'pow') {
+      borderColor = blue;
+      borderDash = [2, 4];
+      width = 1.7;
+    }
+
+    datasets.push({
+      label: c.label,
+      data: pts,
+      type: 'scatter',
+      showLine: true,
+      fill: false,
+      borderColor,
+      backgroundColor: borderColor,
+      borderWidth: width,
+      borderDash,
+      tension: 0.18,
+      pointRadius: 2.2,
+      pointHoverRadius: 5,
+      pointHitRadius: 10,
+      yAxisID: 'y',
+      order: c.type === 'head' ? 3 : c.type === 'eff' ? 2 : 1,
+      _curveType: c.type,
+      _freq: freq
+    });
+  });
+
+  // Design point. Prefer Pump Details, then a design point extracted from the
+  // Graph worksheet itself.
+  const dSpec = pumpSpecFor(site.site) || {};
+  const designFlow = numOrNull(dSpec.designFlow ?? site.designFlow);
+  const designHead = numOrNull(dSpec.designHead ?? site.designHead);
+
+  if (designFlow !== null && designHead !== null) {
+    datasets.push({
+      label: `Design point · ${niceNum(designFlow)} m³/h @ ${niceNum(designHead)} mwc`,
+      data: [{ x: designFlow, y: designHead }],
+      type: 'scatter',
+      showLine: false,
+      borderColor: blue,
+      backgroundColor: blue,
+      pointRadius: 7,
+      pointHoverRadius: 9,
+      pointStyle: 'rectRot',
+      pointBorderWidth: 2,
+      yAxisID: 'y',
+      order: 0,
+      _isDesign: true
+    });
+  }
+
+  // Actual field measurements from the selected borehole.
+  const siteAudits = (rows || []).filter(r => {
+    const a = normalizeSite(r.site);
+    const b = normalizeSite(site.site);
+    return a === b || a.indexOf(b) !== -1 || b.indexOf(a) !== -1;
+  });
+
+  siteAudits.forEach((r, i) => {
+    const flow = numOrNull(r.lps);
+    const head = numOrNull(r.head);
+    if (flow === null || head === null) return;
+
+    const x = Math.round(flow * 3.6 * 10) / 10;
+
+    datasets.push({
+      label: `${r.date || 'Measured'} · ${r.site || site.site}`,
+      data: [{ x, y: head }],
+      type: 'scatter',
+      showLine: false,
+      borderColor: red,
+      backgroundColor: red,
+      pointRadius: 6.5,
+      pointHoverRadius: 9,
+      pointStyle: 'rectRot',
+      pointBorderWidth: 2,
+      yAxisID: 'y',
+      order: 0,
+      _isDuty: true,
+      _audit: r
+    });
+  });
+
+  // Excel-like labels for measured points and axis guide lines.
+  const excelDutyPlugin = {
+    id: 'excelDutyPlugin',
+    afterDatasetsDraw(chart) {
+      const area = chart.chartArea;
+      const xScale = chart.scales.x;
+      const yScale = chart.scales.y;
+      if (!area || !xScale || !yScale) return;
+
+      const ctx = chart.ctx;
+      ctx.save();
+
+      chart.data.datasets.forEach(ds => {
+        if (!ds._isDuty) return;
+        const p = ds.data && ds.data[0];
+        if (!p) return;
+
+        const px = xScale.getPixelForValue(p.x);
+        const py = yScale.getPixelForValue(p.y);
+        if (!Number.isFinite(px) || !Number.isFinite(py)) return;
+        if (px < area.left || px > area.right || py < area.top || py > area.bottom) return;
+
+        ctx.beginPath();
+        ctx.setLineDash([2, 4]);
+        ctx.strokeStyle = tickColor;
+        ctx.globalAlpha = 0.55;
+        ctx.lineWidth = 1;
+        ctx.moveTo(px, py);
+        ctx.lineTo(px, area.bottom);
+        ctx.stroke();
+
+        ctx.beginPath();
+        ctx.moveTo(px, py);
+        ctx.lineTo(area.left, py);
+        ctx.stroke();
+
+        const a = ds._audit || {};
+        const label = `${a.date || 'Measured'} · ${niceNum(p.x)} m³/h · ${niceNum(p.y)} m`;
+        ctx.setLineDash([]);
+        ctx.globalAlpha = 1;
+        ctx.font = "10px 'IBM Plex Mono', monospace";
+        ctx.fillStyle = textColor;
+
+        const labelX = Math.min(px + 8, area.right - 150);
+        const labelY = Math.max(area.top + 12, py - 9);
+        ctx.fillText(label, labelX, labelY);
+      });
+
+      ctx.restore();
+    }
+  };
+
+  resultChartInstance = new Chart(canvas, {
+    type: 'scatter',
+    data: { datasets },
+    plugins: [excelDutyPlugin],
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        title: {
+          display: true,
+          text: `Pump data new pump & actual duty points — ${site.site}`,
+          color: textColor,
+          font: { family: "'Space Grotesk', sans-serif", size: 14, weight: '600' },
+          padding: { bottom: 10 }
+        },
+        legend: {
+          position: 'right',
+          labels: {
+            color: textColor,
+            font: CHART_FONT,
+            boxWidth: 18,
+            padding: 9,
+            usePointStyle: true,
+            filter: item => !item.dataset._isDuty && !item.dataset._isDesign
+          }
+        },
+        tooltip: {
+          titleFont: CHART_FONT,
+          bodyFont: CHART_FONT,
+          callbacks: {
+            label(ctx) {
+              const d = ctx.dataset;
+              if (d._isDuty) {
+                const a = d._audit || {};
+                return [
+                  `${a.date || 'Measured'}`,
+                  `Flow ${niceNum(ctx.parsed.x)} m³/h`,
+                  `Head ${niceNum(ctx.parsed.y)} mwc`,
+                  a.eff !== null && a.eff !== undefined ? `Efficiency ${niceNum(a.eff)}%` : '',
+                  a.elecKw !== null && a.elecKw !== undefined ? `Power ${niceNum(a.elecKw)} kW` : ''
+                ].filter(Boolean);
+              }
+              if (d._isDesign) return [d.label];
+              const unit = d._curveType === 'eff' ? '%' : d._curveType === 'pow' ? ' kW' : ' mwc';
+              const name = d._curveType === 'eff' ? 'Efficiency' : d._curveType === 'pow' ? 'Power' : 'Head';
+              return [`${d.label}`, `Flow ${niceNum(ctx.parsed.x)} m³/h`, `${name} ${niceNum(ctx.parsed.y)}${unit}`];
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          min: 0,
+          max: Math.max(10, Number(site.xMax) || 100),
+          ticks: { color: tickColor, font: CHART_FONT },
+          grid: { color: gridColor },
+          title: { display: true, text: 'Flow [m³/h]', color: tickColor, font: CHART_FONT }
+        },
+        y: {
+          min: 0,
+          max: Math.max(10, Number(site.yMax) || 100),
+          ticks: { color: tickColor, font: CHART_FONT },
+          grid: { color: gridColor },
+          title: {
+            display: true,
+            text: 'Head [mwc] / Power [kW] / Efficiency [%]',
+            color: tickColor,
+            font: CHART_FONT
+          }
+        }
+      }
+    }
+  });
+}
+
+/** Original audit-history trend chart kept as a graceful backend fallback. */
+function renderAuditTrendFallback(canvas, rows) {
   const tickColor = themeColor('--text-faint', '#8fafb5');
   const gridColor = themeColor('--border-soft', '#e6f0f1');
   const teal = themeColor('--teal', '#0a7f93');
   const amber = themeColor('--amber', '#c9821e');
   const green = themeColor('--green', '#2f9e6f');
 
-  const chronological = [...rows].reverse();
+  const chronological = [...(rows || [])].reverse();
   const labels = chronological.map(r => (r.date || '') + (r.site ? ' · ' + r.site : ''));
 
   resultChartInstance = new Chart(canvas, {
@@ -893,7 +1197,6 @@ function renderResultChart(rows) {
     }
   });
 }
-
 function refreshChartsForTheme() {
   if (resultChartInstance && lastResultLog) renderResultChart(lastResultLog);
   if (liveCurves) renderCurves();
@@ -1038,6 +1341,7 @@ async function loadCurvesFromServer() {
     liveCurves = (curvesData.curves && curvesData.curves.length) ? curvesData.curves : [];
     liveDetails = (detailsData.details || []);
     renderCurves();
+    if (lastResultLog) renderResultChart(lastResultLog);
   } catch (e) {
     liveCurves = null;
     renderCurves();
