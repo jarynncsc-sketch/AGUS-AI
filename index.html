@@ -474,13 +474,30 @@ function themeColor(varName, fallback) {
 // ===========================================================================
 // API HELPERS
 // ===========================================================================
+/**
+ * Parses an Apps Script response. The /exec endpoint normally returns JSON,
+ * but when the deployment URL is wrong, stale, or not re-deployed it can
+ * return an HTML page (sign-in or "not found") — surface a clear message.
+ */
+async function apiParse(res) {
+  const text = await res.text();
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try { return JSON.parse(trimmed); } catch (e) { /* fall through */ }
+  }
+  if (trimmed.indexOf('<!DOCTYPE') !== -1 || trimmed.indexOf('<html') !== -1) {
+    throw new Error('Backend returned an HTML page — redeploy Code.gs in Apps Script (Deploy ▸ Manage deployments ▸ New/Update) and confirm GAS_API_URL ends in /exec.');
+  }
+  throw new Error('Unexpected backend response (' + trimmed.slice(0, 80) + ')');
+}
+
 async function apiGet(action, params) {
   const url = new URL(GAS_API_URL);
   url.searchParams.set('action', action);
   url.searchParams.set('token', state.token || '');
   for (const k in (params || {})) url.searchParams.set(k, params[k]);
   const res = await fetch(url.toString());
-  const data = await res.json();
+  const data = await apiParse(res);
   if (!data.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
@@ -492,7 +509,7 @@ async function apiPost(action, payload) {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ action: action, token: state.token }, payload || {}))
   });
-  const data = await res.json();
+  const data = await apiParse(res);
   if (!data.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
