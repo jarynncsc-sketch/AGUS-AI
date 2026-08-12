@@ -283,6 +283,14 @@
   .chip:hover{border-color:var(--text-faint);}
   .chip .count{font-family:var(--mono);opacity:.7;}
 
+  /* ---------- pump curves ---------- */
+  .curve-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;}
+  @media (max-width:980px){.curve-grid{grid-template-columns:1fr;}}
+  .curve-card{padding:14px 16px;}
+  .curve-card h3{font-family:var(--display);font-size:14px;color:var(--text);margin:0 0 4px;text-transform:none;letter-spacing:0;}
+  .curve-card .meta{font-size:11.5px;color:var(--text-faint);font-family:var(--mono);margin-bottom:10px;}
+  .curve-chart-wrap{position:relative;height:340px;}
+
   /* ---------- users ---------- */
   .users-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
   .role-pill{
@@ -368,6 +376,7 @@
     </div>
     <nav class="topnav">
       <button class="navbtn active" data-view="audits" onclick="showAudits()">Audits</button>
+      <button class="navbtn" data-view="curves" onclick="showCurves()">Pump Curves</button>
       <button class="navbtn hidden" id="usersNavBtn" data-view="users" onclick="showUsers()">Users</button>
       <span id="whoami" class="mono" style="font-size:11.5px;color:var(--text-faint);align-self:center;padding:0 4px;"></span>
       <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode">
@@ -401,6 +410,18 @@
           <div id="resultTableWrap" style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);"></div>
         </div>
       </div>
+    </div>
+
+    <div id="viewCurves" class="hidden">
+      <div class="panel" style="margin-bottom:18px;">
+        <h3>Pump Curves <span class="hint">from borehole audit workbooks · new pump vs actual duty points</span></h3>
+        <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.5;">
+          Manufacturer pump curves (Flow vs Head · Efficiency · Power) transposed to the field operating frequency,
+          with measured duty points from each audit plotted on the head curve. These replicate the graphs in the
+          <span class="mono">CWD borehole *.xlsx</span> source workbooks.
+        </p>
+      </div>
+      <div class="curve-grid" id="curveGrid"></div>
     </div>
 
     <div id="viewUsers" class="hidden"></div>
@@ -855,6 +876,7 @@ function renderResultChart(rows) {
 
 function refreshChartsForTheme() {
   if (resultChartInstance && lastResultLog) renderResultChart(lastResultLog);
+  if (liveCurves) renderCurves();
 }
 
 // ===========================================================================
@@ -970,12 +992,143 @@ function openUserModal(row) {
 }
 
 // ===========================================================================
+// PUMP CURVES — loaded from the backend's pumpCurves action (reads every
+// "Graph <Borehole>" tab in the workbook). No data is embedded here so the
+// workbook stays the single source of truth.
+// ===========================================================================
+let curveChartInstances = {};
+let liveCurves = null;
+let liveDetails = [];
+
+function showCurves() {
+  setActiveNav('curves');
+  document.getElementById('viewAudits').classList.add('hidden');
+  document.getElementById('viewUsers').classList.add('hidden');
+  document.getElementById('viewCurves').classList.remove('hidden');
+  renderCurves();
+  loadCurvesFromServer();
+}
+
+async function loadCurvesFromServer() {
+  try {
+    const [curvesData, detailsData] = await Promise.all([
+      apiGet('pumpCurves'),
+      apiGet('pumpDetails').catch(() => ({ details: [] }))
+    ]);
+    liveCurves = (curvesData.curves && curvesData.curves.length) ? curvesData.curves : [];
+    liveDetails = (detailsData.details || []);
+    renderCurves();
+  } catch (e) {
+    liveCurves = null;
+    renderCurves();
+  }
+}
+
+function pumpDetailFor(site) {
+  const target = normalizeSite(site);
+  const d = liveDetails.find(x => normalizeSite(x.borehole) === target);
+  if (!d) return '';
+  const parts = [];
+  if (d.manufacturer) parts.push(d.manufacturer);
+  if (d.model) parts.push(d.model);
+  if (d.hz) parts.push(d.hz + ' Hz');
+  return parts.length ? parts.join(' · ') : '';
+}
+
+function renderCurves() {
+  const grid = document.getElementById('curveGrid');
+  if (!grid || typeof Chart === 'undefined') return;
+
+  if (!liveCurves) {
+    grid.innerHTML = `<div class="empty-state"><h3>Loading pump curves…</h3><p>Fetching from the workbook.</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = '';
+  if (!liveCurves.length) {
+    grid.innerHTML = `<div class="empty-state"><h3>No pump curves found</h3><p>Add a <span class="mono">Graph &lt;Borehole&gt;</span> tab to the workbook with Flow / Head (and Efficiency / Power / Freq) columns.</p></div>`;
+    return;
+  }
+
+  liveCurves.forEach(site => {
+    const card = document.createElement('div');
+    card.className = 'panel curve-card';
+    const spec = pumpDetailFor(site.site);
+    card.innerHTML = `
+      <h3>${escapeHtml(site.site)}</h3>
+      <div class="meta">${spec ? escapeHtml(spec) + ' · ' : ''}${escapeHtml(site.source)} · ${(site.points || []).length} duty point(s)</div>
+      <div class="curve-chart-wrap"><canvas id="curve-${site.id}"></canvas></div>`;
+    grid.appendChild(card);
+    buildCurveChart(site);
+  });
+}
+
+function buildCurveChart(site) {
+  const canvas = document.getElementById('curve-' + site.id);
+  if (!canvas) return;
+  if (curveChartInstances[site.id]) curveChartInstances[site.id].destroy();
+
+  const tickColor = themeColor('--text-faint', '#8fafb5');
+  const gridColor = themeColor('--border-soft', '#e6f0f1');
+  const headC = themeColor('--teal', '#0a7f93');
+  const effC = themeColor('--amber', '#c9821e');
+  const powC = themeColor('--blue', '#2e7da6');
+  const redC = themeColor('--red', '#c8443f');
+
+  const datasets = [];
+
+  site.curves.forEach(c => {
+    const pts = c.x.map((x, i) => ({ x: x, y: c.y[i] }));
+    const col = c.type === 'head' ? headC : c.type === 'eff' ? effC : powC;
+    const dash = c.type === 'head' ? [] : c.type === 'eff' ? [6, 4] : [2, 4];
+    datasets.push({
+      label: c.label, data: pts, type: 'scatter',
+      showLine: true, fill: false, borderColor: col, backgroundColor: col,
+      borderWidth: c.type === 'head' ? 2 : 1.5, borderDash: dash, tension: 0.3,
+      pointRadius: 0, pointHitRadius: 8, yAxisID: c.type === 'eff' ? 'yEff' : c.type === 'pow' ? 'yPow' : 'yHead',
+      order: 1
+    });
+  });
+
+  site.points.forEach((p, i) => {
+    datasets.push({
+      label: p.label, data: [{ x: p.x, y: p.y }], type: 'scatter',
+      showLine: false, fill: false, borderColor: redC, backgroundColor: redC + '33',
+      pointRadius: 5, pointStyle: 'rectRot', pointHitRadius: 10, yAxisID: 'yHead', order: 0,
+      _isDuty: true
+    });
+  });
+
+  curveChartInstances[site.id] = new Chart(canvas, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { color: themeColor('--text-muted', '#57777d'), font: CHART_FONT, boxWidth: 10, padding: 10, usePointStyle: true, filter: (item) => !item.dataset._isDuty } },
+        tooltip: { titleFont: CHART_FONT, bodyFont: CHART_FONT, callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.x} m³/h, ${ctx.parsed.y}${ctx.dataset.yAxisID === 'yEff' ? ' %' : ctx.dataset.yAxisID === 'yPow' ? ' kW' : ' mwc'}` } }
+      },
+      scales: {
+        x: { type: 'linear', max: site.xMax, ticks: { color: tickColor, font: CHART_FONT }, grid: { color: gridColor }, title: { display: true, text: 'Flow [m³/h]', color: tickColor, font: CHART_FONT } },
+        yHead: { position: 'left', min: 0, max: site.yMax, ticks: { color: tickColor, font: CHART_FONT }, grid: { color: gridColor }, title: { display: true, text: 'Head [mwc]', color: tickColor, font: CHART_FONT } },
+        yEff: { position: 'right', min: 0, max: 100, ticks: { color: tickColor, font: CHART_FONT }, grid: { display: false }, title: { display: true, text: 'Efficiency [%]', color: tickColor, font: CHART_FONT } },
+        yPow: { position: 'right', min: 0, max: Math.max(60, site.yMax * 0.5), ticks: { color: tickColor, font: CHART_FONT }, grid: { display: false }, title: { display: true, text: 'Power [kW]', color: tickColor, font: CHART_FONT }, offset: true }
+      }
+    }
+  });
+}
+
+// ===========================================================================
 // UTIL
 // ===========================================================================
 function escapeHtml(str) {
   return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
 }
 function escapeAttr(str) { return escapeHtml(str); }
+function normalizeSite(s) {
+  return String(s || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+}
 
 // Auto-login if a session token already exists in this tab.
 (function autoLogin() {
