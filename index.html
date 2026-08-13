@@ -343,7 +343,7 @@
     main{padding:16px;}
     .form-grid{grid-template-columns:1fr;}
   }
-</style>
+.source-note{margin:6px 2px 0;color:var(--text-faint);font-size:10px;font-family:'IBM Plex Mono',monospace}</style>
 </head>
 <body>
 
@@ -415,7 +415,7 @@
           <h3>Energy Audit Result <span class="hint" id="resultHint"></span></h3>
           <div class="stats-row" id="resultStats"></div>
           <div class="chart-card" style="margin-bottom:16px;">
-            <div class="chart-wrap"><canvas id="resultChart"></canvas></div>
+            <div class="chart-wrap"><canvas id="resultChart"></canvas></div><div class="source-note">Pump curves and audit points: attached CWD borehole Baha Baha(2).xlsx · Graph Baha Baha / Audits sheets</div>
           </div>
           <div id="resultTableWrap" style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);"></div>
         </div>
@@ -854,39 +854,9 @@ function avgVal(vals) {
 // These values are intentionally used as supplied; no curve interpolation or
 // affinity-law recalculation is applied to the four tested-frequency curves.
 // ===========================================================================
-const BAHA_BAHA_EXCEL_CURVES = {
-  50: {
-    flow: [0, 15, 30, 60, 90, 120, 150],
-    head: [87.0, 89.0, 87.0, 79.0, 71.0, 62.0, 50.0],
-    eff:  [0, 22, 38, 62, 73, 79, 74],
-    power:[15.5, 17.1, 19.0, 21.2, 23.7, 26.1, 27.0]
-  },
-  55: {
-    flow: [0, 17, 33, 66, 99, 132, 165],
-    head: [105.3, 107.7, 105.3, 95.6, 85.9, 75.0, 60.5],
-    eff:  [0, 21, 37, 61, 73, 78, 76],
-    power:[20.6, 22.8, 25.3, 28.2, 31.5, 34.7, 35.9]
-  },
-  58: {
-    flow: [0, 17, 35, 70, 104, 139, 174],
-    head: [117.1, 119.8, 117.1, 106.3, 95.5, 83.4, 67.3],
-    eff:  [0, 21, 37, 61, 73, 78, 76],
-    power:[24.2, 26.7, 29.7, 33.1, 37.0, 40.7, 42.1]
-  },
-  60: {
-    flow: [0, 18, 36, 72, 108, 144, 180],
-    head: [125.3, 128.2, 125.3, 113.8, 102.2, 89.3, 72.0],
-    eff:  [0, 21, 37, 61, 73, 78, 76],
-    power:[26.8, 29.5, 32.8, 36.6, 41.0, 45.1, 46.7]
-  }
-};
+const BAHA_BAHA_EXCEL_CURVES = {"50":{"flow":[0,15,30,60,90,120,150],"head":[87,89,87,79,71,62,50],"eff":[0,22,38,62,73,79,74],"power":[15.5,17.1,19,21.2,23.7,26.1,27]},"55":{"flow":[0,17,33,66,99,132,165],"head":[105.3,107.7,105.3,95.6,85.9,75,60.5],"eff":[0,21,37,61,73,78,76],"power":[20.6,22.8,25.3,28.2,31.5,34.7,35.9]},"58":{"flow":[0,17,35,70,104,139,174],"head":[117.1,119.8,117.1,106.3,95.5,83.4,67.3],"eff":[0,21,37,61,73,78,76],"power":[24.2,26.7,29.7,33.1,37,40.7,42.1]}};
 
-const BAHA_BAHA_EXCEL_DUTY = {
-  design: { flow: 144.0, head: 80.0, eff: 80.0, power: 45.0, label: "Design value" },
-  "2022": { flow: 144.0, head: 65.0, eff: 54.0, power: 47.2, label: "Measured value '22" },
-  "2023": { flow: 154.8, head: 57.9, eff: 53.0, power: 46.2, label: "Measured value '23" },
-  "2026": { flow: 160.2, head: 69.3, eff: 57.0, power: 53.2, label: "Measured value '26" }
-};
+const BAHA_BAHA_EXCEL_DUTY = {"2022":{"flow":144.0,"head":63.8,"eff":52.8806353241925,"power":47.3426989795385,"label":"Measured value '22"},"2023":{"flow":154.8,"head":56.4,"eff":51.3010743325769,"power":46.3756603726567,"label":"Measured value '23"},"2026":{"flow":160.2,"head":67.8,"eff":55.6236653924514,"power":53.2107166817824,"label":"Measured value '26"}};
 
 function isBahaBahaSite(rows) {
   return rows.length > 0 && rows.every(r => normalizeSite(r.site || '') === normalizeSite('Baha Baha'));
@@ -943,7 +913,7 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
   const datasets = [];
 
   // Preserve the Excel ordering: each frequency has Head, Power, Efficiency.
-  [50, 55, 58, 60].forEach((hz, idx) => {
+  Object.keys(BAHA_BAHA_EXCEL_CURVES).map(Number).sort((a,b)=>a-b).forEach((hz, idx) => {
     const c = BAHA_BAHA_EXCEL_CURVES[hz];
     const dash = hz === 50 ? [7, 5] : [];
     const width = hz === 50 ? 1.8 : 2.0;
@@ -966,23 +936,25 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
     ));
   });
 
-  // Design point — exact workbook value.
+  // Design point: shown only when the source workbook supplies one.
   const d = BAHA_BAHA_EXCEL_DUTY.design;
-  datasets.push({
-    label: 'Design value',
-    data: [{ x: d.flow, y: d.head }],
-    type: 'scatter',
-    showLine: false,
-    pointRadius: 6,
-    pointHoverRadius: 8,
-    pointStyle: 'triangle',
-    backgroundColor: designColor,
-    borderColor: designColor,
-    borderWidth: 1.5,
-    yAxisID: 'yHead',
-    _isDuty: true,
-    _dutyInfo: d
-  });
+  if (d) {
+    datasets.push({
+      label: 'Design value',
+      data: [{ x: d.flow, y: d.head }],
+      type: 'scatter',
+      showLine: false,
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      pointStyle: 'triangle',
+      backgroundColor: designColor,
+      borderColor: designColor,
+      borderWidth: 1.5,
+      yAxisID: 'yHead',
+      _isDuty: true,
+      _dutyInfo: d
+    });
+  }
 
   // Actual measured duty points — exact workbook values.
   excelDutyPointsForRows(rows).forEach((p) => {
