@@ -238,7 +238,7 @@
   .stat .value{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--teal);}
   .stat .sub{font-size:11px;color:var(--text-faint);margin-top:3px;}
 
-  .chart-wrap{position:relative;height:240px;}
+  .chart-wrap{position:relative;height:390px;}
 
   .summary-table{width:100%;border-collapse:collapse;font-size:12.5px;}
   .summary-table th{
@@ -847,15 +847,307 @@ function avgVal(vals) {
   return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100;
 }
 
+
+// ===========================================================================
+// BAHA BAHA — EXACT EXCEL PUMP-CURVE DATA
+// Source: user-supplied CWD Baha Baha pump-curve table.
+// These values are intentionally used as supplied; no curve interpolation or
+// affinity-law recalculation is applied to the four tested-frequency curves.
+// ===========================================================================
+const BAHA_BAHA_EXCEL_CURVES = {
+  50: {
+    flow: [0, 15, 30, 60, 90, 120, 150],
+    head: [87.0, 89.0, 87.0, 79.0, 71.0, 62.0, 50.0],
+    eff:  [0, 22, 38, 62, 73, 79, 74],
+    power:[15.5, 17.1, 19.0, 21.2, 23.7, 26.1, 27.0]
+  },
+  55: {
+    flow: [0, 17, 33, 66, 99, 132, 165],
+    head: [105.3, 107.7, 105.3, 95.6, 85.9, 75.0, 60.5],
+    eff:  [0, 21, 37, 61, 73, 78, 76],
+    power:[20.6, 22.8, 25.3, 28.2, 31.5, 34.7, 35.9]
+  },
+  58: {
+    flow: [0, 17, 35, 70, 104, 139, 174],
+    head: [117.1, 119.8, 117.1, 106.3, 95.5, 83.4, 67.3],
+    eff:  [0, 21, 37, 61, 73, 78, 76],
+    power:[24.2, 26.7, 29.7, 33.1, 37.0, 40.7, 42.1]
+  },
+  60: {
+    flow: [0, 18, 36, 72, 108, 144, 180],
+    head: [125.3, 128.2, 125.3, 113.8, 102.2, 89.3, 72.0],
+    eff:  [0, 21, 37, 61, 73, 78, 76],
+    power:[26.8, 29.5, 32.8, 36.6, 41.0, 45.1, 46.7]
+  }
+};
+
+const BAHA_BAHA_EXCEL_DUTY = {
+  design: { flow: 144.0, head: 80.0, eff: 80.0, power: 45.0, label: "Design value" },
+  "2022": { flow: 144.0, head: 65.0, eff: 54.0, power: 47.2, label: "Measured value '22" },
+  "2023": { flow: 154.8, head: 57.9, eff: 53.0, power: 46.2, label: "Measured value '23" },
+  "2026": { flow: 160.2, head: 69.3, eff: 57.0, power: 53.2, label: "Measured value '26" }
+};
+
+function isBahaBahaSite(rows) {
+  return rows.length > 0 && rows.every(r => normalizeSite(r.site || '') === normalizeSite('Baha Baha'));
+}
+
+function excelDutyPointsForRows(rows) {
+  return rows.map((r, index) => {
+    const year = String(r.date || '').slice(0, 4);
+    const exact = BAHA_BAHA_EXCEL_DUTY[year];
+    const flow = exact ? exact.flow : (Number(r.lps) || 0) * 3.6;
+    const head = exact ? exact.head : Number(r.head);
+    const eff = exact ? exact.eff : Number(r.eff);
+    const power = exact ? exact.power : Number(r.elecKw);
+    return {
+      x: flow,
+      y: head,
+      eff,
+      power,
+      date: r.date || '',
+      year,
+      label: exact ? exact.label : `Measured value ${year || index + 1}`
+    };
+  }).filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+}
+
+function excelCurveDataset(label, hz, x, y, axis, color, dash, width) {
+  return {
+    label,
+    data: x.map((v, i) => ({ x: v, y: y[i] })),
+    type: 'scatter',
+    showLine: true,
+    fill: false,
+    borderColor: color,
+    backgroundColor: color,
+    borderWidth: width,
+    borderDash: dash,
+    pointRadius: 2,
+    pointHoverRadius: 4,
+    pointHitRadius: 10,
+    tension: 0.22,
+    yAxisID: axis,
+    _curveHz: hz,
+    _isExcelCurve: true
+  };
+}
+
+function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
+  const headColor = themeColor('--teal', '#0a7f93');
+  const effColor = themeColor('--green', '#2f9e6f');
+  const powerColor = themeColor('--blue', '#2e7da6');
+  const dutyColor = themeColor('--amber', '#c9821e');
+  const designColor = themeColor('--red', '#c8443f');
+
+  const datasets = [];
+
+  // Preserve the Excel ordering: each frequency has Head, Power, Efficiency.
+  [50, 55, 58, 60].forEach((hz, idx) => {
+    const c = BAHA_BAHA_EXCEL_CURVES[hz];
+    const dash = hz === 50 ? [7, 5] : [];
+    const width = hz === 50 ? 1.8 : 2.0;
+    const alpha = hz === 50 ? 'aa' : 'ff';
+
+    datasets.push(excelCurveDataset(
+      `Head ${hz} Hz`,
+      hz, c.flow, c.head, 'yHead',
+      headColor + alpha, dash, width
+    ));
+    datasets.push(excelCurveDataset(
+      `Power ${hz} Hz`,
+      hz, c.flow, c.power, 'yPower',
+      powerColor + alpha, dash, width
+    ));
+    datasets.push(excelCurveDataset(
+      `Efficiency ${hz} Hz`,
+      hz, c.flow, c.eff, 'yEff',
+      effColor + alpha, dash, width
+    ));
+  });
+
+  // Design point — exact workbook value.
+  const d = BAHA_BAHA_EXCEL_DUTY.design;
+  datasets.push({
+    label: 'Design value',
+    data: [{ x: d.flow, y: d.head }],
+    type: 'scatter',
+    showLine: false,
+    pointRadius: 6,
+    pointHoverRadius: 8,
+    pointStyle: 'triangle',
+    backgroundColor: designColor,
+    borderColor: designColor,
+    borderWidth: 1.5,
+    yAxisID: 'yHead',
+    _isDuty: true,
+    _dutyInfo: d
+  });
+
+  // Actual measured duty points — exact workbook values.
+  excelDutyPointsForRows(rows).forEach((p) => {
+    datasets.push({
+      label: p.label,
+      data: [{ x: p.x, y: p.y }],
+      type: 'scatter',
+      showLine: false,
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      pointStyle: 'rectRot',
+      backgroundColor: dutyColor,
+      borderColor: dutyColor,
+      borderWidth: 1.5,
+      yAxisID: 'yHead',
+      _isDuty: true,
+      _dutyInfo: p
+    });
+  });
+
+  const excelDutyLabelPlugin = {
+    id: 'bahaBahaExcelDutyLabels',
+    afterDatasetsDraw(chart) {
+      const {ctx} = chart;
+      ctx.save();
+      const labels = [];
+      chart.data.datasets.forEach((ds, datasetIndex) => {
+        if (!ds._isDuty || !ds.data || !ds.data.length) return;
+        const meta = chart.getDatasetMeta(datasetIndex);
+        const pt = meta.data && meta.data[0];
+        if (!pt) return;
+        const info = ds._dutyInfo || {};
+        labels.push({x: pt.x, y: pt.y, text: info.label || ds.label, color: ds.backgroundColor});
+      });
+
+      ctx.font = '10px "IBM Plex Mono", monospace';
+      ctx.textBaseline = 'middle';
+      labels.forEach((p, i) => {
+        const rightSide = p.x < chart.chartArea.left + chart.chartArea.width * 0.72;
+        const dx = rightSide ? 12 : -12;
+        const align = rightSide ? 'left' : 'right';
+        const dy = i === labels.length - 1 ? -10 : 12;
+
+        ctx.strokeStyle = p.color;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + dx, p.y + dy);
+        ctx.stroke();
+
+        ctx.fillStyle = p.color;
+        ctx.textAlign = align;
+        ctx.fillText(p.text, p.x + dx + (rightSide ? 3 : -3), p.y + dy);
+      });
+      ctx.restore();
+    }
+  };
+
+  if (!Chart.registry.plugins.get('bahaBahaExcelDutyLabels')) {
+    Chart.register(excelDutyLabelPlugin);
+  }
+
+  resultChartInstance = new Chart(canvas, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        title: {
+          display: true,
+          text: 'Pump data new pump & actual duty points - CWD Baha Baha',
+          color: themeColor('--text', '#10343c'),
+          font: { family: 'Space Grotesk', size: 15, weight: '600' },
+          padding: { bottom: 8 }
+        },
+        legend: {
+          position: 'top',
+          labels: {
+            color: themeColor('--text-muted', '#57777d'),
+            font: CHART_FONT,
+            boxWidth: 22,
+            padding: 8,
+            usePointStyle: false,
+            filter: (item, data) => !data.datasets[item.datasetIndex]._isDuty
+          }
+        },
+        tooltip: {
+          titleFont: CHART_FONT,
+          bodyFont: CHART_FONT,
+          callbacks: {
+            label: (ctx) => {
+              const ds = ctx.dataset;
+              const info = ds._dutyInfo;
+              if (info) {
+                return `${ds.label}: ${info.flow} m³/h · ${info.head} m · ${info.power} kW · ${info.eff}%`;
+              }
+              const unit = ds.yAxisID === 'yEff' ? '%' : ds.yAxisID === 'yPower' ? ' kW' : ' m';
+              return `${ds.label}: ${ctx.parsed.x} m³/h · ${ctx.parsed.y}${unit}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          min: 0,
+          max: 200,
+          ticks: { color: tickColor, font: CHART_FONT, stepSize: 20 },
+          grid: { color: gridColor },
+          title: { display: true, text: 'Flow [m³/h]', color: tickColor, font: CHART_FONT }
+        },
+        yHead: {
+          position: 'left',
+          min: 0,
+          max: 130,
+          ticks: { color: tickColor, font: CHART_FONT, stepSize: 10 },
+          grid: { color: gridColor },
+          title: { display: true, text: 'Head [mwc]', color: headColor, font: CHART_FONT }
+        },
+        yPower: {
+          position: 'left',
+          min: 0,
+          max: 130,
+          offset: true,
+          ticks: { color: powerColor, font: CHART_FONT, stepSize: 10 },
+          grid: { display: false },
+          title: { display: true, text: 'Power [kW]', color: powerColor, font: CHART_FONT }
+        },
+        yEff: {
+          position: 'right',
+          min: 0,
+          max: 100,
+          ticks: { color: effColor, font: CHART_FONT, stepSize: 10 },
+          grid: { display: false },
+          title: { display: true, text: 'Efficiency [%]', color: effColor, font: CHART_FONT }
+        }
+      }
+    }
+  });
+}
+
 function renderResultChart(rows) {
   const canvas = document.getElementById('resultChart');
   if (!canvas || typeof Chart === 'undefined') return;
   lastResultLog = rows;
 
-  if (resultChartInstance) resultChartInstance.destroy();
+  if (resultChartInstance) {
+    resultChartInstance.destroy();
+    resultChartInstance = null;
+  }
 
   const tickColor = themeColor('--text-faint', '#8fafb5');
   const gridColor = themeColor('--border-soft', '#e6f0f1');
+
+  // Baha Baha: reproduce the supplied Excel pump-performance graph exactly
+  // from the supplied 50/55/58/60 Hz values and duty points.
+  if (isBahaBahaSite(rows)) {
+    renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor);
+    return;
+  }
+
+  // Other sites retain the existing Energy Audit trend chart.
   const teal = themeColor('--teal', '#0a7f93');
   const amber = themeColor('--amber', '#c9821e');
   const green = themeColor('--green', '#2f9e6f');
