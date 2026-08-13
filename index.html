@@ -290,16 +290,6 @@
   .curve-card h3{font-family:var(--display);font-size:14px;color:var(--text);margin:0 0 4px;text-transform:none;letter-spacing:0;}
   .curve-card .meta{font-size:11.5px;color:var(--text-faint);font-family:var(--mono);margin-bottom:10px;}
   .curve-chart-wrap{position:relative;height:340px;}
-  .curve-hz-control{display:flex;align-items:center;gap:10px;margin:2px 0 12px;padding:8px 10px;background:var(--bg-card-hover);border:1px solid var(--border-soft);border-radius:8px;}
-  .curve-hz-control label{font-size:11px;font-family:var(--mono);color:var(--text-muted);white-space:nowrap;}
-  .curve-hz-control input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--teal) 0%,var(--teal) var(--pct,50%),var(--border) var(--pct,50%),var(--border) 100%);outline:none;cursor:pointer;}
-  .curve-hz-control input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;background:var(--teal);border:2px solid var(--bg-panel);box-shadow:0 0 0 1px var(--teal);cursor:pointer;}
-  .curve-hz-control input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--teal);border:2px solid var(--bg-panel);box-shadow:0 0 0 1px var(--teal);cursor:pointer;}
-  .curve-hz-control .hz-val{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--teal);min-width:56px;text-align:right;}
-  .curve-hz-control .hz-note{width:100%;font-size:10.5px;color:var(--text-faint);font-family:var(--mono);margin-top:2px;}
-  .curve-legend-note{display:flex;gap:14px;flex-wrap:wrap;font-size:10.5px;color:var(--text-faint);font-family:var(--mono);margin:-4px 0 10px;}
-  .curve-legend-note span{display:flex;align-items:center;gap:5px;}
-  .curve-legend-note i{display:inline-block;width:12px;height:2px;border-radius:1px;}
 
   /* ---------- users ---------- */
   .users-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
@@ -424,12 +414,13 @@
 
     <div id="viewCurves" class="hidden">
       <div class="panel" style="margin-bottom:18px;">
-        <h3>Pump Curves <span class="hint">design curve vs actual duty points · 50-60 Hz adjustable</span></h3>
+        <h3>Pump Curves <span class="hint">from borehole audit workbooks · new pump vs actual duty points</span></h3>
         <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.5;">
-          Manufacturer pump curves (Flow vs Head · Efficiency · Power) affinity-law scaled to any frequency between
-          50-60 Hz with the slider on each card, with measured duty points from every audit plotted as the
-          <strong>Actual</strong> operating point against the scaled <strong>Design</strong> curve. Faint dashed lines
-          are the frequencies actually tested in the source workbook. These replicate the graphs in the
+          Manufacturer pump performance curves (Flow vs Head · Efficiency · Power) transposed to the field operating
+          frequency. Head curves carry a light fill like the printed curves; the highlighted <span class="mono">red ◆</span> markers
+          are the <b>measured duty points</b> from each audit, the <span class="mono" style="color:var(--amber)">★ BEP</span> marks the
+          best-efficiency point, and the outlined <span class="mono" style="color:var(--blue)">◇ design point</span> is the manufacturer's
+          design Flow/Head. Hover any marker for full measured values. These replicate the graphs in the
           <span class="mono">CWD borehole *.xlsx</span> source workbooks.
         </p>
       </div>
@@ -483,13 +474,30 @@ function themeColor(varName, fallback) {
 // ===========================================================================
 // API HELPERS
 // ===========================================================================
+/**
+ * Parses an Apps Script response. The /exec endpoint normally returns JSON,
+ * but when the deployment URL is wrong, stale, or not re-deployed it can
+ * return an HTML page (sign-in or "not found") — surface a clear message.
+ */
+async function apiParse(res) {
+  const text = await res.text();
+  const trimmed = text.trim();
+  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+    try { return JSON.parse(trimmed); } catch (e) { /* fall through */ }
+  }
+  if (trimmed.indexOf('<!DOCTYPE') !== -1 || trimmed.indexOf('<html') !== -1) {
+    throw new Error('Backend returned an HTML page — redeploy Code.gs in Apps Script (Deploy ▸ Manage deployments ▸ New/Update) and confirm GAS_API_URL ends in /exec.');
+  }
+  throw new Error('Unexpected backend response (' + trimmed.slice(0, 80) + ')');
+}
+
 async function apiGet(action, params) {
   const url = new URL(GAS_API_URL);
   url.searchParams.set('action', action);
   url.searchParams.set('token', state.token || '');
   for (const k in (params || {})) url.searchParams.set(k, params[k]);
   const res = await fetch(url.toString());
-  const data = await res.json();
+  const data = await apiParse(res);
   if (!data.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
@@ -501,7 +509,7 @@ async function apiPost(action, payload) {
     headers: { 'Content-Type': 'text/plain;charset=utf-8' },
     body: JSON.stringify(Object.assign({ action: action, token: state.token }, payload || {}))
   });
-  const data = await res.json();
+  const data = await apiParse(res);
   if (!data.ok) throw new Error(data.error || 'Request failed');
   return data;
 }
@@ -1007,54 +1015,10 @@ function openUserModal(row) {
 // PUMP CURVES — loaded from the backend's pumpCurves action (reads every
 // "Graph <Borehole>" tab in the workbook). No data is embedded here so the
 // workbook stays the single source of truth.
-//
-// Each borehole's measured curve family (one Head/Efficiency/Power set per
-// tested Hz) is used as a base for the pump affinity laws so the "Design"
-// curve can be scaled to any frequency in the 50-60 Hz band the fleet
-// actually runs at: Q2=Q1*(N2/N1), H2=H1*(N2/N1)^2, P2=P1*(N2/N1)^3,
-// efficiency held constant (standard affinity-law approximation near BEP).
-// The audit-derived duty points are plotted unscaled as "Actual" markers.
 // ===========================================================================
 let curveChartInstances = {};
 let liveCurves = null;
 let liveDetails = [];
-let curveHzState = {}; // site.id -> currently selected slider Hz
-
-const HZ_MIN = 50, HZ_MAX = 60;
-
-/** Groups a site's flat curves[] (labelled "Head 55 Hz" etc.) by frequency. */
-function groupCurvesByHz(curves) {
-  const groups = {}; // hz(number) -> { head:{x,y}, eff:{x,y}, pow:{x,y} }
-  curves.forEach(c => {
-    const m = /(\d+(?:\.\d+)?)\s*Hz\s*$/i.exec(c.label || '');
-    const hz = m ? parseFloat(m[1]) : null;
-    if (hz === null) return; // no frequency tag on this curve, skip for scaling
-    if (!groups[hz]) groups[hz] = {};
-    groups[hz][c.type] = { x: c.x, y: c.y };
-  });
-  return groups;
-}
-
-/** Affinity-scales one {x,y} series from fromHz to toHz. yPower: 2=head, 3=power, 0=efficiency. */
-function affinityScale(series, ratio, yPower) {
-  if (!series) return null;
-  return {
-    x: series.x.map(v => v === null || v === undefined ? null : Math.round(v * ratio * 100) / 100),
-    y: series.y.map(v => v === null || v === undefined ? null : Math.round(v * Math.pow(ratio, yPower) * 1000) / 1000)
-  };
-}
-
-function toPoints(series) {
-  if (!series) return [];
-  return series.x.map((x, i) => ({ x, y: series.y[i] })).filter(p => p.x !== null && p.y !== null);
-}
-
-/** Adds an alpha channel to a "#rrggbb" color. alpha in [0,1]. */
-function hexAlpha(hex, alpha) {
-  if (!hex || hex[0] !== '#' || hex.length < 7) return hex;
-  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0');
-  return hex.slice(0, 7) + a;
-}
 
 function showCurves() {
   setActiveNav('curves');
@@ -1091,6 +1055,61 @@ function pumpDetailFor(site) {
   return parts.length ? parts.join(' · ') : '';
 }
 
+/** Full pump spec object for a site, or null. */
+function pumpSpecFor(site) {
+  const target = normalizeSite(site);
+  return liveDetails.find(x => normalizeSite(x.borehole) === target) || null;
+}
+
+/** Formats a number for chart labels: strip trailing zeros, keep 1 decimal. */
+function niceNum(v, decimals) {
+  if (v === null || v === undefined || isNaN(v)) return '–';
+  const d = decimals === undefined ? 1 : decimals;
+  return Number(v).toFixed(d).replace(/\.0+$/, '').replace(/(\.\d*?)0+$/, '$1');
+}
+
+/** Best-Efficiency Point of each efficiency series (flow/head at max eff %). */
+function computeBEP(site) {
+  const beps = [];
+  site.curves.forEach(curve => {
+    if (curve.type !== 'eff') return;
+    let bi = -1, bv = -Infinity;
+    curve.y.forEach((y, i) => {
+      if (y !== null && y !== undefined && y > bv) { bv = y; bi = i; }
+    });
+    if (bi < 0) return;
+    beps.push({ label: curve.label.replace('Efficiency', 'BEP'), x: curve.x[bi], y: bv, idx: bi });
+  });
+  return beps;
+}
+
+/** Draws dotted drop-lines from duty points to each axis, like printed pump curves. */
+const dutyGuidePlugin = {
+  id: 'dutyGuidePlugin',
+  afterDatasetsDraw(chart, args, opts) {
+    const site = opts.site, canvas = chart.canvas, ctx = chart.ctx;
+    if (!site || !site.points || !site.points.length || !canvas) return;
+    const area = chart.chartArea;
+    const xScale = chart.scales.x, yScale = chart.scales.yHead;
+    if (!xScale || !yScale) return;
+    const faint = themeColor('--text-faint', '#8fafb5');
+    ctx.save();
+    site.points.forEach(p => {
+      const px = xScale.getPixelForValue(p.x);
+      const py = yScale.getPixelForValue(p.y);
+      if (px < area.left || px > area.right || py < area.top || py > area.bottom) return;
+      ctx.beginPath();
+      ctx.setLineDash([2, 4]);
+      ctx.strokeStyle = faint; ctx.globalAlpha = 0.55; ctx.lineWidth = 1;
+      ctx.moveTo(px, py); ctx.lineTo(px, area.bottom); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(px, py); ctx.lineTo(area.left, py); ctx.stroke();
+    });
+    ctx.restore();
+    canvas.style.cursor = 'default';
+  }
+};
+
 function renderCurves() {
   const grid = document.getElementById('curveGrid');
   if (!grid || typeof Chart === 'undefined') return;
@@ -1107,198 +1126,138 @@ function renderCurves() {
   }
 
   liveCurves.forEach(site => {
-    const groups = groupCurvesByHz(site.curves);
-    const availableHz = Object.keys(groups).map(Number).sort((a, b) => a - b);
-    const hasHz = availableHz.length > 0;
-
     const card = document.createElement('div');
     card.className = 'panel curve-card';
     const spec = pumpDetailFor(site.site);
-
-    let sliderHtml = '';
-    if (hasHz) {
-      const detail = liveDetails.find(x => normalizeSite(x.borehole) === normalizeSite(site.site));
-      const detailHz = detail && detail.hz ? parseFloat(detail.hz) : null;
-      let defaultHz = curveHzState[site.id];
-      if (defaultHz === undefined) {
-        defaultHz = (detailHz && detailHz >= HZ_MIN && detailHz <= HZ_MIN + 10) ? detailHz : availableHz[availableHz.length - 1];
-        defaultHz = Math.min(HZ_MAX, Math.max(HZ_MIN, defaultHz));
-      }
-      curveHzState[site.id] = defaultHz;
-      const pct = ((defaultHz - HZ_MIN) / (HZ_MAX - HZ_MIN)) * 100;
-      sliderHtml = `
-        <div class="curve-hz-control">
-          <label for="hz-${site.id}">Design freq.</label>
-          <input type="range" id="hz-${site.id}" min="${HZ_MIN}" max="${HZ_MAX}" step="0.5" value="${defaultHz}"
-                 style="--pct:${pct}%"
-                 oninput="onCurveHzInput('${site.id}', this)">
-          <span class="hz-val" id="hz-val-${site.id}">${defaultHz.toFixed(1)} Hz</span>
-          <span class="hz-note" id="hz-note-${site.id}"></span>
-        </div>`;
+    const dSpec = pumpSpecFor(site.site);
+    let designLine = '';
+    if (dSpec) {
+      const bits = [];
+      if (dSpec.designFlow !== null && dSpec.designFlow !== undefined) bits.push(`Design ${niceNum(dSpec.designFlow)} m³/h @ ${(dSpec.designHead !== null && dSpec.designHead !== undefined) ? niceNum(dSpec.designHead) + ' mwc' : '—'}`);
+      if (dSpec.designEff !== null && dSpec.designEff !== undefined) bits.push(`nBEP ${niceNum(dSpec.designEff)}%`);
+      if (dSpec.designPower !== null && dSpec.designPower !== undefined) bits.push(`P ${niceNum(dSpec.designPower)} kW`);
+      if (dSpec.hz !== null && dSpec.hz !== undefined) bits.push(`${niceNum(dSpec.hz)} Hz`);
+      if (bits.length) designLine = `<div class="meta">${bits.join(' · ')}</div>`;
     }
-
     card.innerHTML = `
       <h3>${escapeHtml(site.site)}</h3>
       <div class="meta">${spec ? escapeHtml(spec) + ' · ' : ''}${escapeHtml(site.source)} · ${(site.points || []).length} duty point(s)</div>
-      ${sliderHtml}
-      <div class="curve-legend-note">
-        <span><i style="background:var(--red);"></i>Head <span style="opacity:.7">(bold = selected Hz)</span></span>
-        <span><i style="background:var(--green);"></i>Efficiency</span>
-        <span><i style="background:var(--blue);"></i>Power</span>
-        <span><i style="background:var(--amber);height:8px;width:8px;border-radius:2px;transform:rotate(45deg);"></i>Actual duty point (audit)</span>
-      </div>
+      ${designLine}
       <div class="curve-chart-wrap"><canvas id="curve-${site.id}"></canvas></div>`;
     grid.appendChild(card);
-    buildCurveChart(site, groups, availableHz, curveHzState[site.id]);
+    buildCurveChart(site);
   });
 }
 
-function onCurveHzInput(siteId, input) {
-  const hz = parseFloat(input.value);
-  curveHzState[siteId] = hz;
-  const pct = ((hz - HZ_MIN) / (HZ_MAX - HZ_MIN)) * 100;
-  input.style.setProperty('--pct', pct + '%');
-  const valEl = document.getElementById('hz-val-' + siteId);
-  if (valEl) valEl.textContent = hz.toFixed(1) + ' Hz';
-  const site = (liveCurves || []).find(s => s.id === siteId);
-  if (!site) return;
-  const groups = groupCurvesByHz(site.curves);
-  const availableHz = Object.keys(groups).map(Number).sort((a, b) => a - b);
-  updateCurveChart(site, groups, availableHz, hz);
-}
-
-/** Picks the measured Hz curve closest to the target — no longer used for base selection (base
- * is always the lowest tested Hz) but kept available for future use. */
-function nearestHz(availableHz, target) {
-  return availableHz.reduce((best, hz) => Math.abs(hz - target) < Math.abs(best - target) ? hz : best, availableHz[0]);
-}
-
-function curveDataset(label, points, color, axis, style) {
-  // style: 'base' (dashed, faint - the original untransposed curve), 'tested' (solid, medium - a
-  // transposed/measured curve at a tested Hz), 'design' (bold, opaque - the slider's selection)
-  const cfg = {
-    base:   { width: 1.5, dash: [5, 4], alpha: 0.55, radius: 0 },
-    tested: { width: 2,   dash: [],     alpha: 0.8,  radius: 0 },
-    design: { width: 3.5, dash: [],     alpha: 1,    radius: 3 }
-  }[style];
-  return {
-    label, data: points, type: 'scatter', showLine: true, fill: false,
-    borderColor: hexAlpha(color, cfg.alpha), backgroundColor: color,
-    borderWidth: cfg.width, borderDash: cfg.dash, tension: 0.3,
-    pointRadius: cfg.radius, pointHitRadius: 8, yAxisID: axis,
-    order: style === 'design' ? 1 : 3, _isRef: style !== 'design'
-  };
-}
-
-function buildDatasets(site, groups, availableHz, targetHz, colors) {
-  const { headC, effC, powC, dutyC } = colors;
-  const datasets = [];
-
-  if (availableHz.length) {
-    // Always transpose from the lowest tested frequency (the "original new pump" curve), exactly
-    // like the workbook's Q2=Q1*(N2/N1), H2=H1*(N2/N1)^2, P2=P1*(N2/N1)^3 tables.
-    const baseHz = availableHz[0];
-    const base = groups[baseHz];
-
-    // The full tested family: base curve dashed & faint, every other tested Hz solid, prominence
-    // ramping up with frequency — matching the workbook's "50 Hz dashed / 55,58,60 Hz solid" look.
-    availableHz.forEach((hz, idx) => {
-      const g = groups[hz];
-      const isBase = hz === baseHz;
-      const style = isBase ? 'base' : 'tested';
-      const tag = isBase ? ' (original)' : '';
-      if (g.head) datasets.push(curveDataset(`Head ${hz} Hz${tag}`, toPoints(g.head), headC, 'yHead', style));
-      if (g.eff) datasets.push(curveDataset(`Efficiency ${hz} Hz${tag}`, toPoints(g.eff), effC, 'yEff', style));
-      if (g.pow) datasets.push(curveDataset(`Power ${hz} Hz${tag}`, toPoints(g.pow), powC, 'yPow', style));
-    });
-
-    // Bold highlighted "Design" curve, affinity-scaled from the base curve to the slider's frequency.
-    const ratio = targetHz / baseHz;
-    const designHead = affinityScale(base.head, ratio, 2);
-    const designEff = affinityScale(base.eff, ratio, 0);
-    const designPow = affinityScale(base.pow, ratio, 3);
-    if (designHead) datasets.push({ ...curveDataset(`Design Head @ ${targetHz.toFixed(1)} Hz`, toPoints(designHead), headC, 'yHead', 'design'), _isRef: false });
-    if (designEff) datasets.push({ ...curveDataset(`Design Efficiency @ ${targetHz.toFixed(1)} Hz`, toPoints(designEff), effC, 'yEff', 'design'), _isRef: true });
-    if (designPow) datasets.push({ ...curveDataset(`Design Power @ ${targetHz.toFixed(1)} Hz`, toPoints(designPow), powC, 'yPow', 'design'), _isRef: true });
-  } else {
-    // No frequency tags on this borehole's curves — draw them as originally given.
-    site.curves.forEach(c => {
-      const col = c.type === 'head' ? headC : c.type === 'eff' ? effC : powC;
-      datasets.push(curveDataset(c.label, c.x.map((x, i) => ({ x, y: c.y[i] })), col,
-        c.type === 'eff' ? 'yEff' : c.type === 'pow' ? 'yPow' : 'yHead', 'tested'));
-    });
-  }
-
-  // Actual duty points from the audit log — always plotted unscaled, amber, matching the
-  // workbook's orange "measured value" markers.
-  site.points.forEach(p => {
-    datasets.push({
-      label: 'Actual: ' + p.label, data: [{ x: p.x, y: p.y }], type: 'scatter',
-      showLine: false, fill: false, borderColor: dutyC, backgroundColor: hexAlpha(dutyC, 0.85),
-      pointRadius: 6, pointStyle: 'rectRot', pointHitRadius: 10, yAxisID: 'yHead', order: 0,
-      _isDuty: true
-    });
-  });
-
-  return datasets;
-}
-
-function buildCurveChart(site, groups, availableHz, targetHz) {
+function buildCurveChart(site) {
   const canvas = document.getElementById('curve-' + site.id);
   if (!canvas) return;
   if (curveChartInstances[site.id]) curveChartInstances[site.id].destroy();
 
   const tickColor = themeColor('--text-faint', '#8fafb5');
   const gridColor = themeColor('--border-soft', '#e6f0f1');
-  const colors = {
-    headC: themeColor('--red', '#c8443f'),
-    effC: themeColor('--green', '#2f9e6f'),
-    powC: themeColor('--blue', '#2e7da6'),
-    dutyC: themeColor('--amber', '#c9821e')
-  };
+  const headC = themeColor('--teal', '#0a7f93');
+  const effC = themeColor('--amber', '#c9821e');
+  const powC = themeColor('--blue', '#2e7da6');
+  const redC = themeColor('--red', '#c8443f');
+  const designC = themeColor('--blue', '#2e7da6');
 
-  const datasets = buildDatasets(site, groups, availableHz, targetHz, colors);
+  const datasets = [];
 
-  const noteEl = document.getElementById('hz-note-' + site.id);
-  if (noteEl && availableHz.length) {
-    noteEl.textContent = `transposed from the original ${availableHz[0]} Hz curve via pump affinity laws`;
+  site.curves.forEach(c => {
+    const pts = c.x.map((x, i) => ({ x: x, y: c.y[i] }));
+    const col = c.type === 'head' ? headC : c.type === 'eff' ? effC : powC;
+    const dash = c.type === 'head' ? [] : c.type === 'eff' ? [6, 4] : [2, 4];
+    const ds = {
+      label: c.label, data: pts, type: 'scatter',
+      showLine: true, fill: false, borderColor: col, backgroundColor: col,
+      borderWidth: c.type === 'head' ? 2.5 : 1.5, borderDash: dash, tension: 0.3,
+      pointRadius: 0, pointHitRadius: 8, yAxisID: c.type === 'eff' ? 'yEff' : c.type === 'pow' ? 'yPow' : 'yHead',
+      order: 1
+    };
+    if (c.type === 'head' && site.curves.filter(k => k.type === 'head').length === 1) {
+      ds.fill = true;
+      ds.backgroundColor = col + '14';
+    }
+    datasets.push(ds);
+  });
+
+  // Design point (manufacturer's design Flow / Head) — outlined blue diamond.
+  const dSpec = pumpSpecFor(site.site);
+  const designFlow = (dSpec && dSpec.designFlow !== null && dSpec.designFlow !== undefined) ? Number(dSpec.designFlow) : null;
+  const designHead = (dSpec && dSpec.designHead !== null && dSpec.designHead !== undefined) ? Number(dSpec.designHead) : null;
+  if (designFlow !== null && designHead !== null) {
+    datasets.push({
+      label: `Design ${niceNum(designFlow)} m³/h @ ${niceNum(designHead)} mwc`, data: [{ x: designFlow, y: designHead }],
+      type: 'scatter', showLine: false, fill: false, borderColor: designC, backgroundColor: designC + '33',
+      pointRadius: 8, pointStyle: 'rect', pointRot: 45, pointBorderWidth: 2.5, pointHitRadius: 12,
+      yAxisID: 'yHead', order: 0, _isDesign: true
+    });
   }
+
+  // Best-Efficiency Points (★) with a matching head value at the same flow.
+  const beps = computeBEP(site);
+  beps.forEach(b => {
+    const headAtBep = (() => {
+      const freqTag = b.label.replace('BEP', '').trim();
+      const headCurve = site.curves.find(k => k.type === 'head' && (k.label.replace('Head', '').trim() === freqTag || freqTag === ''));
+      if (!headCurve || headCurve.y[b.idx] === undefined) return null;
+      return headCurve.y[b.idx];
+    })();
+    datasets.push({
+      label: `${b.label} ${niceNum(b.y)}%` + (headAtBep !== null ? ` · ${niceNum(headAtBep)} mwc` : ''),
+      data: [{ x: b.x, y: b.y }], type: 'scatter', showLine: false, fill: false,
+      borderColor: effC, backgroundColor: effC + 'cc', pointRadius: 6.5, pointStyle: 'star',
+      pointHitRadius: 12, yAxisID: 'yEff', order: 0, _isBep: true
+    });
+  });
+
+  // Duty points (measured audits) — red rotated squares with guide lines.
+  site.points.forEach((p, i) => {
+    datasets.push({
+      label: `${p.label} · ${niceNum(p.x)} m³/h @ ${niceNum(p.y)} mwc` + (p.eff !== null && p.eff !== undefined ? ` · ${niceNum(p.eff)}%` : ''),
+      data: [{ x: p.x, y: p.y }], type: 'scatter',
+      showLine: false, fill: false, borderColor: redC, backgroundColor: redC + '33',
+      pointRadius: 6.5, pointStyle: 'rectRot', pointBorderWidth: 2, pointHitRadius: 12, yAxisID: 'yHead', order: 0,
+      _isDuty: true
+    });
+  });
+
+  const tooltipLabel = (ctx) => {
+    const d = ctx.dataset;
+    if (d._isDuty) {
+      const parts = [d.label];
+      parts.push(`Flow ${niceNum(ctx.parsed.x)} m³/h`);
+      parts.push(`Head ${niceNum(ctx.parsed.y)} mwc`);
+      return parts;
+    }
+    if (d._isDesign) return [d.label];
+    if (d._isBep) return [d.label];
+    const unit = d.yAxisID === 'yEff' ? ' %' : d.yAxisID === 'yPow' ? ' kW' : ' mwc';
+    return [`${d.label}`, `Flow ${niceNum(ctx.parsed.x)} m³/h`, `${d.yAxisID === 'yEff' ? 'Efficiency' : d.yAxisID === 'yPow' ? 'Power' : 'Head'} ${niceNum(ctx.parsed.y)}${unit}`];
+  };
 
   curveChartInstances[site.id] = new Chart(canvas, {
     type: 'scatter',
     data: { datasets },
+    plugins: [{ ...dutyGuidePlugin, options: { site } }],
     options: {
       responsive: true, maintainAspectRatio: false,
       interaction: { mode: 'nearest', intersect: false },
       plugins: {
-        legend: { position: 'top', labels: { color: themeColor('--text-muted', '#57777d'), font: CHART_FONT, boxWidth: 10, padding: 10, usePointStyle: true, filter: (item) => !item.dataset._isDuty && !item.dataset._isRef } },
-        tooltip: { titleFont: CHART_FONT, bodyFont: CHART_FONT, callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.x} m³/h, ${ctx.parsed.y}${ctx.dataset.yAxisID === 'yEff' ? ' %' : ctx.dataset.yAxisID === 'yPow' ? ' kW' : ' mwc'}` } }
+        legend: {
+          position: 'top', labels: { color: themeColor('--text-muted', '#57777d'), font: CHART_FONT, boxWidth: 10, padding: 10, usePointStyle: true, filter: (item) => !item.dataset._isDuty && !item.dataset._isBep && !item.dataset._isDesign }
+        },
+        tooltip: { titleFont: CHART_FONT, bodyFont: CHART_FONT, callbacks: { label: tooltipLabel } }
       },
       scales: {
-        x: { type: 'linear', max: site.xMax, ticks: { color: tickColor, font: CHART_FONT }, grid: { color: gridColor }, title: { display: true, text: 'Flow [m³/h]', color: tickColor, font: CHART_FONT } },
+        x: { type: 'linear', min: 0, max: site.xMax, ticks: { color: tickColor, font: CHART_FONT }, grid: { color: gridColor }, title: { display: true, text: 'Flow [m³/h]', color: tickColor, font: CHART_FONT } },
         yHead: { position: 'left', min: 0, max: site.yMax, ticks: { color: tickColor, font: CHART_FONT }, grid: { color: gridColor }, title: { display: true, text: 'Head [mwc]', color: tickColor, font: CHART_FONT } },
         yEff: { position: 'right', min: 0, max: 100, ticks: { color: tickColor, font: CHART_FONT }, grid: { display: false }, title: { display: true, text: 'Efficiency [%]', color: tickColor, font: CHART_FONT } },
         yPow: { position: 'right', min: 0, max: Math.max(60, site.yMax * 0.5), ticks: { color: tickColor, font: CHART_FONT }, grid: { display: false }, title: { display: true, text: 'Power [kW]', color: tickColor, font: CHART_FONT }, offset: true }
       }
     }
   });
-}
-
-function updateCurveChart(site, groups, availableHz, targetHz) {
-  const chart = curveChartInstances[site.id];
-  if (!chart) { buildCurveChart(site, groups, availableHz, targetHz); return; }
-  const colors = {
-    headC: themeColor('--red', '#c8443f'),
-    effC: themeColor('--green', '#2f9e6f'),
-    powC: themeColor('--blue', '#2e7da6'),
-    dutyC: themeColor('--amber', '#c9821e')
-  };
-  chart.data.datasets = buildDatasets(site, groups, availableHz, targetHz, colors);
-  chart.update('none');
-  const noteEl = document.getElementById('hz-note-' + site.id);
-  if (noteEl && availableHz.length) {
-    noteEl.textContent = `transposed from the original ${availableHz[0]} Hz curve via pump affinity laws`;
-  }
 }
 
 // ===========================================================================
