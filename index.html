@@ -194,7 +194,8 @@
   main{flex:1;padding:24px;max-width:1500px;width:100%;margin:0 auto;}
 
   /* ---------- panels ---------- */
-  .audit-split{display:grid;grid-template-columns:1fr 1.1fr;gap:18px;align-items:start;}
+  .audit-split{display:grid;grid-template-columns:minmax(330px,.82fr) minmax(620px,1.65fr);gap:18px;align-items:start;}
+  @media (max-width:1180px){.audit-split{grid-template-columns:minmax(300px,.72fr) minmax(560px,1.28fr);}}
   @media (max-width:980px){.audit-split{grid-template-columns:1fr;}}
   .panel{
     background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
@@ -238,7 +239,14 @@
   .stat .value{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--teal);}
   .stat .sub{font-size:11px;color:var(--text-faint);margin-top:3px;}
 
-  .chart-wrap{position:relative;height:390px;}
+  .chart-wrap{position:relative;height:505px;}
+  .duty-banner{display:grid;grid-template-columns:1.15fr 1fr 1fr 1fr;gap:8px;margin:0 0 10px;}
+  .duty-box{background:var(--bg-card);border:1px solid var(--border-soft);border-radius:8px;padding:8px 10px;min-width:0;}
+  .duty-box .k{font:9.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint);white-space:nowrap;}
+  .duty-box .v{font:700 15px var(--mono);color:var(--text);margin-top:3px;white-space:nowrap;}
+  .duty-box.design{border-left:3px solid var(--red);}
+  .duty-box.actual{border-left:3px solid var(--amber);}
+  @media(max-width:700px){.duty-banner{grid-template-columns:1fr 1fr}.chart-wrap{height:430px;}}
 
   .summary-table{width:100%;border-collapse:collapse;font-size:12.5px;}
   .summary-table th{
@@ -343,17 +351,7 @@
     main{padding:16px;}
     .form-grid{grid-template-columns:1fr;}
   }
-.source-note{margin:6px 2px 0;color:var(--text-faint);font-size:10px;font-family:'IBM Plex Mono',monospace}
-  .excel-pump-dashboard{display:grid;grid-template-columns:285px minmax(0,1fr);gap:12px;align-items:start}
-  .excel-pump-sidebar,.excel-chart-panel,.excel-data-panel{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;box-shadow:0 2px 10px rgba(0,0,0,.04)}
-  .excel-pump-sidebar{padding:14px;position:sticky;top:12px}
-  .excel-pump-main{min-width:0;display:flex;flex-direction:column;gap:12px}
-  .excel-pump-head{background:var(--bg-card);border:1px solid var(--border);border-radius:8px;padding:14px 18px;display:flex;justify-content:space-between;align-items:center}
-  .excel-pump-head h2{margin:0;font-family:var(--display);font-size:20px;letter-spacing:.02em}
-  .excel-subtitle,.excel-source{font:11px var(--mono);color:var(--text-faint);margin-top:3px}.excel-source{margin:0}
-  .excel-chart-panel{padding:10px 12px}.excel-chart-title{text-align:center;font:700 12px var(--mono);letter-spacing:.06em;color:var(--text);margin:2px 0 7px}.excel-chart-lg{height:380px}.excel-chart-sm{height:250px}.excel-chart-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}.excel-data-panel{padding:10px 12px}.excel-duty-card{border:1px solid var(--border);border-radius:7px;padding:11px;margin-bottom:10px}.excel-duty-card.design{border-left:4px solid var(--amber)}.excel-duty-card h3{margin:0 0 8px;font:700 12px var(--mono)}.excel-duty-big{font:700 20px var(--display);color:var(--amber);margin-bottom:8px}.excel-kv{display:flex;justify-content:space-between;padding:3px 0;border-bottom:1px dotted var(--border-soft);font:11px var(--mono)}.excel-kv:last-child{border-bottom:0}.excel-legend{display:grid;gap:6px;margin-top:10px;font:10px var(--mono);color:var(--text-muted)}.excel-legend span{display:flex;align-items:center;gap:7px}.excel-dot{width:10px;height:10px;border-radius:50%;display:inline-block}.excel-triangle{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-bottom:11px solid var(--amber);display:inline-block}.excel-table-wrap{overflow:auto}.excel-table{width:100%;border-collapse:collapse;font:10px var(--mono)}.excel-table th,.excel-table td{padding:5px 7px;border-bottom:1px solid var(--border-soft);text-align:right;white-space:nowrap}.excel-table th:first-child,.excel-table td:first-child{text-align:left}.excel-table th{color:var(--text-muted);font-weight:700}.excel-section-label{font:700 11px var(--mono);margin:9px 0 4px}.excel-section-label:first-child{margin-top:0}
-  @media(max-width:1000px){.excel-pump-dashboard{grid-template-columns:1fr}.excel-pump-sidebar{position:static}.excel-chart-row{grid-template-columns:1fr}}
-</style>
+.source-note{margin:6px 2px 0;color:var(--text-faint);font-size:10px;font-family:'IBM Plex Mono',monospace}</style>
 </head>
 <body>
 
@@ -425,6 +423,12 @@
           <h3>Energy Audit Result <span class="hint" id="resultHint"></span></h3>
           <div class="stats-row" id="resultStats"></div>
           <div class="chart-card" style="margin-bottom:16px;">
+            <div class="duty-banner">
+              <div class="duty-box design"><div class="k">Design duty</div><div class="v">144 m³/h @ 80 m</div></div>
+              <div class="duty-box"><div class="k">Design efficiency</div><div class="v">80 %</div></div>
+              <div class="duty-box"><div class="k">Design power</div><div class="v">45 kW</div></div>
+              <div class="duty-box actual"><div class="k">2026 actual</div><div class="v">160.2 m³/h @ 67.8 m</div></div>
+            </div>
             <div class="chart-wrap"><canvas id="resultChart"></canvas></div><div class="source-note">Pump curves and audit points: attached CWD borehole Baha Baha(2).xlsx · Graph Baha Baha / Audits sheets</div>
           </div>
           <div id="resultTableWrap" style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);"></div>
@@ -433,21 +437,17 @@
     </div>
 
     <div id="viewCurves" class="hidden">
-      <div class="excel-pump-dashboard" id="excelPumpDashboard">
-        <aside class="excel-pump-sidebar" id="excelPumpSidebar"></aside>
-        <section class="excel-pump-main">
-          <div class="excel-pump-head">
-            <div><h2>Pump Curves & Duty Points</h2><div class="excel-subtitle" id="excelPumpSubtitle">CWD Baha Baha Borehole</div></div>
-            <div class="excel-source">Source: CWD borehole Baha Baha(2).xlsx</div>
-          </div>
-          <div class="excel-chart-panel"><div class="excel-chart-title">HEAD vs FLOW</div><div class="excel-chart-lg"><canvas id="excelHeadChart"></canvas></div></div>
-          <div class="excel-chart-row">
-            <div class="excel-chart-panel"><div class="excel-chart-title">EFFICIENCY vs FLOW</div><div class="excel-chart-sm"><canvas id="excelEffChart"></canvas></div></div>
-            <div class="excel-chart-panel"><div class="excel-chart-title">POWER vs FLOW</div><div class="excel-chart-sm"><canvas id="excelPowerChart"></canvas></div></div>
-          </div>
-          <div class="excel-data-panel"><div class="excel-chart-title">PUMP CURVE DATA & DUTY POINTS</div><div id="excelPumpTables"></div></div>
-        </section>
+      <div class="panel" style="margin-bottom:18px;">
+        <h3>Pump Curves <span class="hint">design curve vs actual duty points · 50-60 Hz adjustable</span></h3>
+        <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.5;">
+          Manufacturer pump curves (Flow vs Head · Efficiency · Power) affinity-law scaled to any frequency between
+          50-60 Hz with the slider on each card, with measured duty points from every audit plotted as the
+          <strong>Actual</strong> operating point against the scaled <strong>Design</strong> curve. Faint dashed lines
+          are the frequencies actually tested in the source workbook. These replicate the graphs in the
+          <span class="mono">CWD borehole *.xlsx</span> source workbooks.
+        </p>
       </div>
+      <div class="curve-grid" id="curveGrid"></div>
     </div>
 
     <div id="viewUsers" class="hidden"></div>
@@ -870,7 +870,7 @@ function avgVal(vals) {
 // ===========================================================================
 const BAHA_BAHA_EXCEL_CURVES = {"50":{"flow":[0,15,30,60,90,120,150],"head":[87,89,87,79,71,62,50],"eff":[0,22,38,62,73,79,74],"power":[15.5,17.1,19,21.2,23.7,26.1,27]},"55":{"flow":[0,17,33,66,99,132,165],"head":[105.3,107.7,105.3,95.6,85.9,75,60.5],"eff":[0,21,37,61,73,78,76],"power":[20.6,22.8,25.3,28.2,31.5,34.7,35.9]},"58":{"flow":[0,17,35,70,104,139,174],"head":[117.1,119.8,117.1,106.3,95.5,83.4,67.3],"eff":[0,21,37,61,73,78,76],"power":[24.2,26.7,29.7,33.1,37,40.7,42.1]}};
 
-const BAHA_BAHA_EXCEL_DUTY = {"design":{"flow":144,"head":80,"eff":80,"power":45,"label":"DESIGN DUTY POINT"},"2022":{"flow":144.0,"head":63.8,"eff":52.8806353241925,"power":47.3426989795385,"label":"Measured value '22"},"2023":{"flow":154.8,"head":56.4,"eff":51.3010743325769,"power":46.3756603726567,"label":"Measured value '23"},"2026":{"flow":160.2,"head":67.8,"eff":55.6236653924514,"power":53.2107166817824,"label":"Measured value '26"}};
+const BAHA_BAHA_EXCEL_DUTY = {"design":{"flow":144,"head":80,"eff":80,"power":45,"label":"Design duty 144 m³/h @ 80 m"},"2022":{"flow":144.0,"head":63.8,"eff":52.8806353241925,"power":47.3426989795385,"label":"Measured value '22"},"2023":{"flow":154.8,"head":56.4,"eff":51.3010743325769,"power":46.3756603726567,"label":"Measured value '23"},"2026":{"flow":160.2,"head":67.8,"eff":55.6236653924514,"power":53.2107166817824,"label":"Measured value '26"}};
 
 function isBahaBahaSite(rows) {
   return rows.length > 0 && rows.every(r => normalizeSite(r.site || '') === normalizeSite('Baha Baha'));
@@ -958,8 +958,8 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
       data: [{ x: d.flow, y: d.head }],
       type: 'scatter',
       showLine: false,
-      pointRadius: 8,
-      pointHoverRadius: 10,
+      pointRadius: 6,
+      pointHoverRadius: 8,
       pointStyle: 'triangle',
       backgroundColor: designColor,
       borderColor: designColor,
@@ -1006,11 +1006,29 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
 
       ctx.font = '10px "IBM Plex Mono", monospace';
       ctx.textBaseline = 'middle';
+      // Engineering guide lines for the design duty point.
+      const design = BAHA_BAHA_EXCEL_DUTY.design;
+      if (design) {
+        const xScale = chart.scales.x;
+        const yScale = chart.scales.yHead;
+        const xp = xScale.getPixelForValue(design.flow);
+        const yp = yScale.getPixelForValue(design.head);
+        ctx.save();
+        ctx.setLineDash([4,4]);
+        ctx.strokeStyle = designColor;
+        ctx.globalAlpha = .55;
+        ctx.lineWidth = 1;
+        ctx.beginPath(); ctx.moveTo(xp, chart.chartArea.top); ctx.lineTo(xp, chart.chartArea.bottom); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(chart.chartArea.left, yp); ctx.lineTo(chart.chartArea.right, yp); ctx.stroke();
+        ctx.restore();
+      }
+
       labels.forEach((p, i) => {
-        const rightSide = p.x < chart.chartArea.left + chart.chartArea.width * 0.72;
-        const dx = rightSide ? 12 : -12;
+        const rightSide = p.x < chart.chartArea.left + chart.chartArea.width * 0.68;
+        const dx = rightSide ? 14 : -14;
         const align = rightSide ? 'left' : 'right';
-        const dy = i === labels.length - 1 ? -10 : 12;
+        const offsets = [-16, 18, -18, 18];
+        const dy = offsets[i % offsets.length];
 
         ctx.strokeStyle = p.color;
         ctx.lineWidth = 1;
@@ -1027,37 +1045,8 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
     }
   };
 
-  const dutyGuidePlugin = {
-    id: 'bahaBahaDutyGuides',
-    afterDatasetsDraw(chart) {
-      const d = BAHA_BAHA_EXCEL_DUTY.design;
-      if (!d) return;
-      const xScale = chart.scales.x;
-      const yScale = chart.scales.yHead;
-      if (!xScale || !yScale) return;
-      const px = xScale.getPixelForValue(d.flow);
-      const py = yScale.getPixelForValue(d.head);
-      const {ctx, chartArea} = chart;
-      ctx.save();
-      ctx.setLineDash([5,5]);
-      ctx.lineWidth = 1.2;
-      ctx.strokeStyle = dutyColor;
-      ctx.beginPath(); ctx.moveTo(px, chartArea.bottom); ctx.lineTo(px, py); ctx.stroke();
-      ctx.beginPath(); ctx.moveTo(chartArea.left, py); ctx.lineTo(px, py); ctx.stroke();
-      ctx.setLineDash([]);
-      ctx.fillStyle = dutyColor;
-      ctx.font = 'bold 10px "IBM Plex Mono", monospace';
-      ctx.textAlign = 'left';
-      ctx.fillText(`DUTY: ${d.flow} m³/h @ ${d.head} m`, px + 10, py - 12);
-      ctx.restore();
-    }
-  };
-
   if (!Chart.registry.plugins.get('bahaBahaExcelDutyLabels')) {
     Chart.register(excelDutyLabelPlugin);
-  }
-  if (!Chart.registry.plugins.get('bahaBahaDutyGuides')) {
-    Chart.register(dutyGuidePlugin);
   }
 
   resultChartInstance = new Chart(canvas, {
@@ -1071,7 +1060,7 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
       plugins: {
         title: {
           display: true,
-          text: 'Pump data new pump & actual duty points - CWD Baha Baha',
+          text: 'CWD Baha Baha — Pump Performance & Duty Points',
           color: themeColor('--text', '#10343c'),
           font: { family: 'Space Grotesk', size: 15, weight: '600' },
           padding: { bottom: 8 }
@@ -1081,8 +1070,9 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
           labels: {
             color: themeColor('--text-muted', '#57777d'),
             font: CHART_FONT,
-            boxWidth: 22,
-            padding: 8,
+            boxWidth: 18,
+            padding: 6,
+            boxHeight: 7,
             usePointStyle: false,
             filter: (item, data) => !data.datasets[item.datasetIndex]._isDuty
           }
@@ -1107,7 +1097,7 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
         x: {
           type: 'linear',
           min: 0,
-          max: 200,
+          max: 180,
           ticks: { color: tickColor, font: CHART_FONT, stepSize: 20 },
           grid: { color: gridColor },
           title: { display: true, text: 'Flow [m³/h]', color: tickColor, font: CHART_FONT }
@@ -1123,7 +1113,7 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
         yPower: {
           position: 'left',
           min: 0,
-          max: 130,
+          max: 55,
           offset: true,
           ticks: { color: powerColor, font: CHART_FONT, stepSize: 10 },
           grid: { display: false },
@@ -1132,7 +1122,7 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
         yEff: {
           position: 'right',
           min: 0,
-          max: 100,
+          max: 85,
           ticks: { color: effColor, font: CHART_FONT, stepSize: 10 },
           grid: { display: false },
           title: { display: true, text: 'Efficiency [%]', color: effColor, font: CHART_FONT }
@@ -1402,36 +1392,66 @@ function pumpDetailFor(site) {
 }
 
 function renderCurves() {
-  const dash = document.getElementById('excelPumpDashboard');
-  if (!dash || typeof Chart === 'undefined') return;
-  const site = (liveCurves && liveCurves.length) ? (liveCurves.find(x => normalizeSite(x.site || '') === normalizeSite('Baha Baha')) || liveCurves[0]) : null;
-  const rows = site ? (site.points || []) : [];
-  const groups = site ? groupCurvesByHz(site.curves || []) : {};
-  let curves = groups;
-  if (!Object.keys(curves).length && typeof BAHA_BAHA_EXCEL_CURVES !== 'undefined') {
-    curves = {};
-    Object.keys(BAHA_BAHA_EXCEL_CURVES).forEach(hz => { const c=BAHA_BAHA_EXCEL_CURVES[hz]; curves[hz]={head:{x:c.flow,y:c.head},eff:{x:c.flow,y:c.eff},power:{x:c.flow,y:c.power}}; });
+  const grid = document.getElementById('curveGrid');
+  if (!grid || typeof Chart === 'undefined') return;
+
+  if (!liveCurves) {
+    grid.innerHTML = `<div class="empty-state"><h3>Loading pump curves…</h3><p>Fetching from the workbook.</p></div>`;
+    return;
   }
-  const availableHz = Object.keys(curves).map(Number).sort((a,b)=>a-b);
-  if (!availableHz.length) return;
-  const duty = (typeof BAHA_BAHA_EXCEL_DUTY !== 'undefined') ? BAHA_BAHA_EXCEL_DUTY : {};
-  const design = duty.design || null;
-  const actuals = Object.keys(duty).filter(k=>k!=='design').map(k=>({...duty[k],year:k}));
 
-  const sidebar=document.getElementById('excelPumpSidebar');
-  sidebar.innerHTML = `<div class="excel-duty-card design"><h3>PUMP DUTY POINT (DESIGN)</h3><div class="excel-duty-big">${design?`${design.flow.toFixed(0)} m³/h @ ${design.head.toFixed(0)} m`:'Not available'}</div>${design?`<div class="excel-kv"><span>Flow (Q)</span><b>${design.flow.toFixed(1)} m³/h</b></div><div class="excel-kv"><span>Head (H)</span><b>${design.head.toFixed(1)} m</b></div><div class="excel-kv"><span>Efficiency (η)</span><b>${design.eff.toFixed(0)} %</b></div><div class="excel-kv"><span>Power (P)</span><b>${design.power.toFixed(1)} kW</b></div>`:''}</div><div class="excel-duty-card"><h3>ACTUAL OPERATING POINTS</h3>${actuals.map((d,i)=>`<div style="margin:8px 0 12px"><b style="font:11px var(--mono)">${d.year} · ${d.flow.toFixed(1)} m³/h @ ${d.head.toFixed(1)} m</b><div class="excel-kv"><span>Efficiency</span><b>${d.eff.toFixed(2)} %</b></div><div class="excel-kv"><span>Electrical Power</span><b>${d.power.toFixed(3)} kW</b></div></div>`).join('')}</div><div class="excel-duty-card"><h3>AFFINITY LAWS</h3><div class="excel-kv"><span>Q₂</span><b>Q₁·N₂/N₁</b></div><div class="excel-kv"><span>H₂</span><b>H₁·(N₂/N₁)²</b></div><div class="excel-kv"><span>P₂</span><b>P₁·(N₂/N₁)³</b></div></div>`;
+  grid.innerHTML = '';
+  if (!liveCurves.length) {
+    grid.innerHTML = `<div class="empty-state"><h3>No pump curves found</h3><p>Add a <span class="mono">Graph &lt;Borehole&gt;</span> tab to the workbook with Flow / Head (and Efficiency / Power / Freq) columns.</p></div>`;
+    return;
+  }
 
-  const palette={50:themeColor('--blue','#2e7da6'),55:themeColor('--green','#2f9e6f'),58:'#7a43c6',60:themeColor('--red','#c8443f')};
-  const actualColors=['#1976d2','#20a66a','#7a43c6','#d17b00'];
-  function lineDatasets(metric){ return availableHz.map(hz=>{const g=curves[hz]&&curves[hz][metric]; if(!g)return null; return {label:`${hz} Hz`,data:toPoints(g),showLine:true,pointRadius:3,borderWidth:2,borderColor:palette[hz]||'#666',backgroundColor:palette[hz]||'#666',borderDash:hz===50?[]:[6,5]};}).filter(Boolean); }
-  function pointsFor(metric){return actuals.map((d,i)=>({label:`${d.year}`,data:[{x:d.flow,y:d[metric]}],showLine:false,pointRadius:6,pointHoverRadius:8,pointStyle:'circle',backgroundColor:actualColors[i%actualColors.length],borderColor:actualColors[i%actualColors.length],_duty:true}));}
-  function addDesign(metric){if(!design)return[];return [{label:'Design Duty Point',data:[{x:design.flow,y:design[metric]}],showLine:false,pointRadius:8,pointHoverRadius:10,pointStyle:'triangle',backgroundColor:themeColor('--amber','#c9821e'),borderColor:themeColor('--amber','#c9821e'),_design:true}];}
-  function makeChart(id,metric,title,yTitle,maxY){const old=curveChartInstances[id];if(old)old.destroy();const datasets=lineDatasets(metric).concat(addDesign(metric),pointsFor(metric));curveChartInstances[id]=new Chart(document.getElementById(id),{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'top',labels:{color:themeColor('--text-muted','#57777d'),font:CHART_FONT,usePointStyle:true,boxWidth:10}},tooltip:{callbacks:{label:c=>`${c.dataset.label}: ${c.parsed.x.toFixed(1)} m³/h, ${c.parsed.y.toFixed(metric==='eff'?'2':'1')}${metric==='eff'?' %':metric==='power'?' kW':' m'}`}}},scales:{x:{type:'linear',min:0,max:Math.max(180,design?design.flow*1.35:180),title:{display:true,text:'Flow (m³/h)',color:themeColor('--text-faint','#8fafb5'),font:CHART_FONT},ticks:{color:themeColor('--text-faint','#8fafb5'),font:CHART_FONT},grid:{color:themeColor('--border-soft','#e6f0f1')}},y:{min:0,max:maxY,title:{display:true,text:yTitle,color:themeColor('--text-faint','#8fafb5'),font:CHART_FONT},ticks:{color:themeColor('--text-faint','#8fafb5'),font:CHART_FONT},grid:{color:themeColor('--border-soft','#e6f0f1')}}}}});}
-  makeChart('excelHeadChart','head','HEAD vs FLOW','Head (mwc)',140); makeChart('excelEffChart','eff','EFFICIENCY vs FLOW','Efficiency (%)',100); makeChart('excelPowerChart','power','POWER vs FLOW','Power (kW)',70);
+  liveCurves.forEach(site => {
+    const groups = groupCurvesByHz(site.curves);
+    const availableHz = Object.keys(groups).map(Number).sort((a, b) => a - b);
+    const hasHz = availableHz.length > 0;
 
-  document.getElementById('excelPumpTables').innerHTML = availableHz.map(hz=>{const c=curves[hz];return `<div class="excel-section-label">${hz} Hz ${hz===50?'(Original)':'(Transposed)'}</div><div class="excel-table-wrap"><table class="excel-table"><thead><tr><th>Flow (m³/h)</th><th>Head (m)</th><th>Efficiency (%)</th><th>Power (kW)</th></tr></thead><tbody>${(c.head.x||[]).map((x,i)=>`<tr><td>${Number(x).toFixed(1)}</td><td>${Number(c.head.y[i]).toFixed(2)}</td><td>${c.eff?Number(c.eff.y[i]).toFixed(0):'—'}</td><td>${c.power?Number(c.power.y[i]).toFixed(2):'—'}</td></tr>`).join('')}</tbody></table></div>`}).join('')+`<div class="excel-section-label">DUTY & ACTUAL POINTS</div><div class="excel-table-wrap"><table class="excel-table"><thead><tr><th>Point</th><th>Flow</th><th>Head</th><th>Eff</th><th>Power</th></tr></thead><tbody>${design?`<tr><td>Design Duty</td><td>${design.flow.toFixed(1)}</td><td>${design.head.toFixed(1)}</td><td>${design.eff.toFixed(2)}</td><td>${design.power.toFixed(3)}</td></tr>`:''}${actuals.map(d=>`<tr><td>${d.year}</td><td>${d.flow.toFixed(1)}</td><td>${d.head.toFixed(1)}</td><td>${d.eff.toFixed(2)}</td><td>${d.power.toFixed(3)}</td></tr>`).join('')}</tbody></table></div>`;
+    const card = document.createElement('div');
+    card.className = 'panel curve-card';
+    const spec = pumpDetailFor(site.site);
+
+    let sliderHtml = '';
+    if (hasHz) {
+      const detail = liveDetails.find(x => normalizeSite(x.borehole) === normalizeSite(site.site));
+      const detailHz = detail && detail.hz ? parseFloat(detail.hz) : null;
+      let defaultHz = curveHzState[site.id];
+      if (defaultHz === undefined) {
+        defaultHz = (detailHz && detailHz >= HZ_MIN && detailHz <= HZ_MIN + 10) ? detailHz : availableHz[availableHz.length - 1];
+        defaultHz = Math.min(HZ_MAX, Math.max(HZ_MIN, defaultHz));
+      }
+      curveHzState[site.id] = defaultHz;
+      const pct = ((defaultHz - HZ_MIN) / (HZ_MAX - HZ_MIN)) * 100;
+      sliderHtml = `
+        <div class="curve-hz-control">
+          <label for="hz-${site.id}">Design freq.</label>
+          <input type="range" id="hz-${site.id}" min="${HZ_MIN}" max="${HZ_MAX}" step="0.5" value="${defaultHz}"
+                 style="--pct:${pct}%"
+                 oninput="onCurveHzInput('${site.id}', this)">
+          <span class="hz-val" id="hz-val-${site.id}">${defaultHz.toFixed(1)} Hz</span>
+          <span class="hz-note" id="hz-note-${site.id}"></span>
+        </div>`;
+    }
+
+    card.innerHTML = `
+      <h3>${escapeHtml(site.site)}</h3>
+      <div class="meta">${spec ? escapeHtml(spec) + ' · ' : ''}${escapeHtml(site.source)} · ${(site.points || []).length} duty point(s)</div>
+      ${sliderHtml}
+      <div class="curve-legend-note">
+        <span><i style="background:var(--red);"></i>Head <span style="opacity:.7">(bold = selected Hz)</span></span>
+        <span><i style="background:var(--green);"></i>Efficiency</span>
+        <span><i style="background:var(--blue);"></i>Power</span>
+        <span><i style="background:var(--amber);height:8px;width:8px;border-radius:2px;transform:rotate(45deg);"></i>Actual duty point (audit)</span>
+      </div>
+      <div class="curve-chart-wrap"><canvas id="curve-${site.id}"></canvas></div>`;
+    grid.appendChild(card);
+    buildCurveChart(site, groups, availableHz, curveHzState[site.id]);
+  });
 }
-
 
 function onCurveHzInput(siteId, input) {
   const hz = parseFloat(input.value);
