@@ -870,7 +870,13 @@ function avgVal(vals) {
 // ===========================================================================
 const BAHA_BAHA_EXCEL_CURVES = {"50":{"flow":[0,15,30,60,90,120,150],"head":[87,89,87,79,71,62,50],"eff":[0,22,38,62,73,79,74],"power":[15.5,17.1,19,21.2,23.7,26.1,27]},"55":{"flow":[0,17,33,66,99,132,165],"head":[105.3,107.7,105.3,95.6,85.9,75,60.5],"eff":[0,21,37,61,73,78,76],"power":[20.6,22.8,25.3,28.2,31.5,34.7,35.9]},"58":{"flow":[0,17,35,70,104,139,174],"head":[117.1,119.8,117.1,106.3,95.5,83.4,67.3],"eff":[0,21,37,61,73,78,76],"power":[24.2,26.7,29.7,33.1,37,40.7,42.1]}};
 
-const BAHA_BAHA_EXCEL_DUTY = {"design":{"flow":144,"head":80,"eff":80,"power":45,"label":"Design duty 144 m³/h @ 80 m"},"2022":{"flow":144.0,"head":63.8,"eff":52.8806353241925,"power":47.3426989795385,"label":"Measured value '22"},"2023":{"flow":154.8,"head":56.4,"eff":51.3010743325769,"power":46.3756603726567,"label":"Measured value '23"},"2026":{"flow":160.2,"head":67.8,"eff":55.6236653924514,"power":53.2107166817824,"label":"Measured value '26"}};
+// 2026-08 update: eff/power recomputed after fixing the Phydr/Eff.Pump unit bugs in
+// Energy_Audit.xlsx (2022 used /3600 instead of /1000 on an l/s reading; 2026 multiplied
+// pressure by m3/h flow instead of m3/s). Flow/head are unaffected by that fix. "power" here
+// is the actual measured "Power pumpset" figure from each sheet (2023 uses the behind-VFD
+// reading, 46.2 kW, matching the workbook's own Eff.Pump denominator), so eff = Phydr/power
+// exactly for every year, including "design".
+const BAHA_BAHA_EXCEL_DUTY = {"design":{"flow":144,"head":80,"eff":80,"power":45,"label":"Design duty 144 m³/h @ 80 m"},"2022":{"flow":144.0,"head":63.78,"eff":53.0254237288136,"power":47.2,"label":"Measured value '22"},"2023":{"flow":154.8,"head":56.43,"eff":51.5235214285714,"power":46.2,"label":"Measured value '23"},"2026":{"flow":160.2,"head":67.80,"eff":55.6332818952175,"power":53.2,"label":"Measured value '26"}};
 
 function isBahaBahaSite(rows) {
   return rows.length > 0 && rows.every(r => normalizeSite(r.site || '') === normalizeSite('Baha Baha'));
