@@ -413,7 +413,10 @@
           <h3>Audit History <span class="hint" id="historyCount"></span></h3>
           <div class="log-toolbar">
             <div class="chiprow" id="siteChips" style="margin:0;"></div>
-            <button class="btn btn-primary" style="width:auto;" id="addAuditBtn" onclick="openAuditModal()">+ Add audit</button>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-ghost" style="width:auto;" id="addLegacyAuditBtn" onclick="openLegacyAuditModal()">+ New yearly audit</button>
+              <button class="btn btn-primary" style="width:auto;" id="addAuditBtn" onclick="openAuditModal()">+ Add audit</button>
+            </div>
           </div>
           <div id="auditList"></div>
         </div>
@@ -611,6 +614,7 @@ function showAudits() {
   document.getElementById('viewAudits').classList.remove('hidden');
   document.getElementById('viewUsers').classList.add('hidden');
   document.getElementById('addAuditBtn').style.display = state.role === 'viewer' ? 'none' : 'inline-flex';
+  document.getElementById('addLegacyAuditBtn').style.display = state.role === 'viewer' ? 'none' : 'inline-flex';
   if (!state.audits.length) loadAudits();
   else renderAudits();
 }
@@ -650,6 +654,8 @@ function renderAudits() {
     list.innerHTML = '';
     rows.forEach(a => {
       const chips = buildReadingChips(a);
+      const key = auditKey(a);
+      const isLegacy = !!a.sourceTab;
       const el = document.createElement('div');
       el.className = 'log-entry';
       el.innerHTML = `
@@ -657,9 +663,10 @@ function renderAudits() {
           <span class="date">${escapeHtml(a.date || '—')}</span>
           <span class="site">${escapeHtml(a.site || '')}</span>
           <span class="mono" style="font-size:11px;color:var(--text-faint);">${escapeHtml(a.manufacturer || '')} ${escapeHtml(a.model || '')}</span>
+          ${isLegacy ? '<span class="mono" style="font-size:10.5px;color:var(--text-faint);border:1px solid var(--border);border-radius:5px;padding:1px 6px;">full sheet</span>' : ''}
           ${canEdit ? `<span class="row-actions">
-            <button onclick="openAuditModal(${a.row})">Edit</button>
-            <button class="del" onclick="deleteAudit(${a.row})">Delete</button>
+            <button onclick="openAuditModal('${escapeAttr(key)}')">Edit</button>
+            ${isLegacy ? '' : `<button class="del" onclick="deleteAudit('${escapeAttr(key)}')">Delete</button>`}
           </span>` : ''}
         </div>
         ${chips ? `<div class="readings">${chips}</div>` : ''}
@@ -672,25 +679,38 @@ function renderAudits() {
   renderResult();
 }
 
+function auditKey(a) {
+  return a.sourceTab ? ('legacy:' + a.sourceTab) : ('row:' + a.row);
+}
+
+function round2(v) {
+  return (v === null || v === undefined || isNaN(v)) ? null : Math.round(parseFloat(v) * 100) / 100;
+}
+
 function buildReadingChips(a) {
+  const volts = round2(a.volts), amps = round2(a.amps), pf = round2(a.pf), hz = round2(a.operatingHz),
+        elecKw = round2(a.elecKw), lps = round2(a.lps), head = round2(a.head), eff = round2(a.eff),
+        specific = round2(a.specific), meterKwh = round2(a.meterKwh);
   const chips = [];
-  if (a.volts !== null && a.volts !== undefined) chips.push(`V <b>${a.volts}</b>`);
-  if (a.amps !== null && a.amps !== undefined) chips.push(`A <b>${a.amps}</b>`);
-  if (a.pf !== null && a.pf !== undefined) chips.push(`PF <b>${a.pf}</b>`);
-  if (a.operatingHz !== null && a.operatingHz !== undefined) chips.push(`Hz <b>${a.operatingHz}</b>`);
-  if (a.elecKw !== null && a.elecKw !== undefined) chips.push(`Elec <b>${a.elecKw} kW</b>`);
-  if (a.lps !== null && a.lps !== undefined) chips.push(`Q <b>${a.lps} L/s</b>`);
-  if (a.head !== null && a.head !== undefined) chips.push(`Head <b>${a.head} m</b>`);
-  if (a.eff !== null && a.eff !== undefined) chips.push(`Eff <b>${a.eff}%</b>`);
-  if (a.specific !== null && a.specific !== undefined) chips.push(`<b>${a.specific} kWh/m³</b>`);
-  if (a.meterKwh !== null && a.meterKwh !== undefined) chips.push(`Meter <b>${a.meterKwh} kWh</b>`);
+  if (volts !== null) chips.push(`V <b>${volts}</b>`);
+  if (amps !== null) chips.push(`A <b>${amps}</b>`);
+  if (pf !== null) chips.push(`PF <b>${pf}</b>`);
+  if (hz !== null) chips.push(`Hz <b>${hz}</b>`);
+  if (elecKw !== null) chips.push(`Elec <b>${elecKw} kW</b>`);
+  if (lps !== null) chips.push(`Q <b>${lps} L/s</b>`);
+  if (head !== null) chips.push(`Head <b>${head} m</b>`);
+  if (eff !== null) chips.push(`Eff <b>${eff}%</b>`);
+  if (specific !== null) chips.push(`<b>${specific} kWh/m³</b>`);
+  if (meterKwh !== null) chips.push(`Meter <b>${meterKwh} kWh</b>`);
   return chips.map(c => `<span class="reading-chip">${c}</span>`).join('');
 }
 
-async function deleteAudit(row) {
+async function deleteAudit(key) {
+  const existing = state.audits.find(a => auditKey(a) === key);
+  if (!existing || existing.sourceTab) return; // full-sheet audits aren't deletable from here
   if (!confirm('Delete this audit entry? This clears the row in the sheet.')) return;
   try {
-    await apiPost('deleteAudit', { row: row });
+    await apiPost('deleteAudit', { row: existing.row });
     toast('Audit deleted');
     await loadAudits();
   } catch (err) { toast(err.message, true); }
@@ -717,25 +737,70 @@ const AUDIT_FORM_FIELDS = [
   { key: 'note', label: 'Notes / remarks', type: 'textarea', span: 2 }
 ];
 
-function openAuditModal(row) {
-  const existing = row ? state.audits.find(a => a.row === row) : null;
-  const backdrop = document.createElement('div');
-  backdrop.className = 'modal-backdrop';
-  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+// Fields for the detailed per-year "Baha-Baha <year>" sheets. Deliberately close
+// to AUDIT_FORM_FIELDS but split into the raw components (static/pumping level +
+// discharge pressure) those sheets actually store, since "head" there is a live
+// formula derived from them, not a typed-in number. volts/amps are text, not
+// number, because the sheets sometimes hold three-phase readings written as
+// "463/471/472" — the backend averages those (averageSlashNumbers_) either way.
+const LEGACY_AUDIT_FORM_FIELDS = [
+  { key: 'year', label: 'Audit year', type: 'number', span: 1, newOnly: true, placeholder: 'e.g. 2027' },
+  { key: 'date', label: 'Audit date/time', type: 'text', span: 1, placeholder: 'e.g. Aug 14, 2027 ; 10:00' },
+  { key: 'manufacturer', label: 'Manufacturer', type: 'text', span: 1 },
+  { key: 'model', label: 'Model', type: 'text', span: 1 },
+  { key: '__section_levels', label: 'Water levels & pressure', section: true },
+  { key: 'staticLevel', label: 'Static water level (m)', type: 'number' },
+  { key: 'pumpingLevel', label: 'Level with pump running (m)', type: 'number' },
+  { key: 'dischargePressure', label: 'Discharge pressure (psi)', type: 'number' },
+  { key: '__section_motor', label: 'Electrical readings', section: true },
+  { key: 'volts', label: 'Voltage (V)', type: 'text' },
+  { key: 'amps', label: 'Current (A)', type: 'text' },
+  { key: 'pf', label: 'Power factor', type: 'number', step: 0.01 },
+  { key: 'operatingHz', label: 'Operating freq. (Hz)', type: 'number', step: 0.1 },
+  { key: '__section_pump', label: 'Flow', section: true },
+  { key: 'lps', label: 'Flow (L/s)', type: 'number' },
+  { key: '__section_notes', label: 'Notes', section: true },
+  { key: 'note', label: 'Notes / remarks', type: 'textarea', span: 2 }
+];
 
-  let fieldsHtml = '';
-  AUDIT_FORM_FIELDS.forEach(f => {
+function renderAuditFormFields(fields, existing, opts) {
+  opts = opts || {};
+  let html = '';
+  fields.forEach(f => {
+    if (f.newOnly && existing) return; // e.g. "year" only applies when creating a new legacy sheet
     if (f.section) {
-      fieldsHtml += `<div class="form-section-label">${escapeHtml(f.label)}</div>`;
+      html += `<div class="form-section-label">${escapeHtml(f.label)}</div>`;
       return;
     }
     const val = existing ? (existing[f.key] ?? '') : '';
     const spanClass = f.span === 2 ? ' span2' : '';
     const step = f.step ? ` step="${f.step}"` : (f.type === 'number' ? ' step="any"' : '');
-    fieldsHtml += `<div class="${spanClass}"><label>${escapeHtml(f.label)}</label>
-      <input type="${f.type}" data-key="${f.key}" value="${escapeAttr(String(val))}" placeholder="${escapeAttr(f.placeholder || '')}"${step}></div>`;
+    if (f.type === 'textarea') {
+      html += `<div class="${spanClass}"><label>${escapeHtml(f.label)}</label>
+        <textarea data-key="${f.key}" placeholder="${escapeAttr(f.placeholder || '')}">${escapeHtml(String(val))}</textarea></div>`;
+    } else {
+      html += `<div class="${spanClass}"><label>${escapeHtml(f.label)}</label>
+        <input type="${f.type}" data-key="${f.key}" value="${escapeAttr(String(val))}" placeholder="${escapeAttr(f.placeholder || '')}"${step}></div>`;
+    }
   });
+  return html;
+}
 
+function readAuditFormValues(backdrop) {
+  const entry = {};
+  backdrop.querySelectorAll('[data-key]').forEach(el => { entry[el.dataset.key] = el.value; });
+  return entry;
+}
+
+function openAuditModal(key) {
+  const existing = key ? state.audits.find(a => auditKey(a) === key) : null;
+  if (existing && existing.sourceTab) { openLegacyAuditModal(key); return; }
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+
+  const fieldsHtml = renderAuditFormFields(AUDIT_FORM_FIELDS, existing);
   backdrop.innerHTML = `<div class="modal">
     <h3>${existing ? 'Edit audit entry' : 'New audit entry'}</h3>
     <div class="form-grid">${fieldsHtml}</div>
@@ -764,8 +829,7 @@ function openAuditModal(row) {
 
   backdrop.querySelector('#saveAuditBtn').onclick = async () => {
     const btn = backdrop.querySelector('#saveAuditBtn');
-    const entry = {};
-    backdrop.querySelectorAll('[data-key]').forEach(el => { entry[el.dataset.key] = el.value; });
+    const entry = readAuditFormValues(backdrop);
     if (!entry.site || !entry.site.trim()) { toast('Site is required', true); return; }
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
     try {
@@ -781,6 +845,70 @@ function openAuditModal(row) {
     } catch (err) {
       toast(err.message, true);
       btn.disabled = false; btn.textContent = existing ? 'Save changes' : 'Add audit';
+    }
+  };
+}
+
+// Full-sheet editing for the detailed "Baha-Baha <year>" audits. Pass a key to
+// edit an existing one, or call with no argument to create a new year (clones
+// the newest existing sheet as a template on the backend). Head/Phydr/Eff/
+// specific-energy are shown read-only because they're live formulas in the
+// sheet — they recompute from whatever raw readings get saved here.
+function openLegacyAuditModal(key) {
+  const existing = key ? state.audits.find(a => auditKey(a) === key) : null;
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+
+  const fieldsHtml = renderAuditFormFields(LEGACY_AUDIT_FORM_FIELDS, existing);
+  const computed = existing ? `
+    <div class="form-section-label">Calculated (from the sheet's own formulas)</div>
+    <div class="span2" style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${round2(existing.head) !== null ? `<span class="reading-chip">Head <b>${round2(existing.head)} m</b></span>` : ''}
+      ${round2(existing.hydKw) !== null ? `<span class="reading-chip">Hydraulic <b>${round2(existing.hydKw)} kW</b></span>` : ''}
+      ${round2(existing.eff) !== null ? `<span class="reading-chip">Eff <b>${round2(existing.eff)}%</b></span>` : ''}
+      ${round2(existing.specific) !== null ? `<span class="reading-chip"><b>${round2(existing.specific)} kWh/m³</b></span>` : ''}
+    </div>
+    ${existing.headFormulaLive === false ? `<div class="span2" style="font-size:12px;color:var(--text-faint);">Head for this audit was recorded as a fixed value, not derived from the readings above — editing static/pumping level or discharge pressure here won't change it. Edit it directly in the sheet if it needs to change.</div>` : ''}
+  ` : '';
+
+  backdrop.innerHTML = `<div class="modal">
+    <h3>${existing ? `Edit full audit — ${escapeHtml(existing.sourceTab)}` : 'New yearly audit (Baha Baha)'}</h3>
+    ${!existing ? `<p style="margin:-4px 0 12px;font-size:12.5px;color:var(--text-faint);">Creates a new "Baha-Baha &lt;year&gt;" sheet with the full pump-curve formulas already wired up, then fills in the readings below.</p>` : ''}
+    <div class="form-grid">${fieldsHtml}${computed}</div>
+    <div class="modal-actions">
+      <div></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-ghost" id="cancelAuditBtn">Cancel</button>
+        <button class="btn btn-primary" style="width:auto;" id="saveAuditBtn">${existing ? 'Save changes' : 'Create audit'}</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(backdrop);
+
+  backdrop.querySelector('#cancelAuditBtn').onclick = () => backdrop.remove();
+
+  backdrop.querySelector('#saveAuditBtn').onclick = async () => {
+    const btn = backdrop.querySelector('#saveAuditBtn');
+    const entry = readAuditFormValues(backdrop);
+    if (!existing && (!entry.year || !/^\d{4}$/.test(entry.year.trim()))) {
+      toast('Audit year must be a 4-digit year, e.g. 2027', true); return;
+    }
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+    try {
+      if (existing) {
+        await apiPost('updateLegacyAudit', { sourceTab: existing.sourceTab, entry });
+        toast('Audit updated');
+      } else {
+        await apiPost('addLegacyAudit', { entry });
+        toast('New yearly audit created');
+      }
+      backdrop.remove();
+      await loadAudits();
+    } catch (err) {
+      toast(err.message, true);
+      btn.disabled = false; btn.textContent = existing ? 'Save changes' : 'Create audit';
     }
   };
 }
@@ -825,10 +953,10 @@ function renderResult() {
   document.getElementById('resultHint').textContent = `${rows.length} point${rows.length === 1 ? '' : 's'} · ${state.siteFilter === 'All' ? 'all sites' : escapeHtml(state.siteFilter)}`;
 
   stats.innerHTML =
-    stat('Latest electrical kW', fmt(latest.elecKw, 2), latest.elecKw !== null && latest.volts ? `V ${fmt(latest.volts, 0)} · A ${fmt(latest.amps, 1)} · PF ${fmt(latest.pf, 2)}` : 'no elec. reading') +
-    stat('Latest hydraulic kW', fmt(latest.hydKw, 2), latest.hydKw !== null ? `Q ${fmt(latest.lps, 1, ' L/s')} · Head ${fmt(latest.head, 1, ' m')}` : 'needs flow + head') +
-    stat('Latest efficiency', fmt(latest.eff, 1, ' %'), 'wire-to-water') +
-    stat('Avg efficiency', fmt(effAvg, 1, ' %'), `worst ${fmt(worstEff, 1, ' %')}`) +
+    stat('Latest electrical kW', fmt(latest.elecKw, 2), latest.elecKw !== null && latest.volts ? `V ${fmt(latest.volts, 2)} · A ${fmt(latest.amps, 2)} · PF ${fmt(latest.pf, 2)}` : 'no elec. reading') +
+    stat('Latest hydraulic kW', fmt(latest.hydKw, 2), latest.hydKw !== null ? `Q ${fmt(latest.lps, 2, ' L/s')} · Head ${fmt(latest.head, 2, ' m')}` : 'needs flow + head') +
+    stat('Latest efficiency', fmt(latest.eff, 2, ' %'), 'wire-to-water') +
+    stat('Avg efficiency', fmt(effAvg, 2, ' %'), `worst ${fmt(worstEff, 2, ' %')}`) +
     stat('Avg specific energy', fmt(secAvg, 2, ' kWh/m³'), `peak elec ${fmt(peakKw, 2, ' kW')}`);
 
   // Table
@@ -838,15 +966,15 @@ function renderResult() {
     html += `<tr>
       <td class="mono">${escapeHtml(r.date || '—')}</td>
       <td>${escapeHtml(r.site || '')}</td>
-      <td class="mono">${fmt(r.volts, 0)}</td>
-      <td class="mono">${fmt(r.amps, 1)}</td>
+      <td class="mono">${fmt(r.volts, 2)}</td>
+      <td class="mono">${fmt(r.amps, 2)}</td>
       <td class="mono">${fmt(r.pf, 2)}</td>
-      <td class="mono">${fmt(r.operatingHz, 1)}</td>
+      <td class="mono">${fmt(r.operatingHz, 2)}</td>
       <td class="mono">${fmt(r.elecKw, 2)}</td>
-      <td class="mono">${fmt(r.lps, 1)}</td>
-      <td class="mono">${fmt(r.head, 1)}</td>
+      <td class="mono">${fmt(r.lps, 2)}</td>
+      <td class="mono">${fmt(r.head, 2)}</td>
       <td class="mono">${fmt(r.hydKw, 2)}</td>
-      <td class="mono">${fmt(r.eff, 1)}</td>
+      <td class="mono">${fmt(r.eff, 2)}</td>
       <td class="mono">${fmt(r.specific, 2)}</td>
     </tr>`;
   });
@@ -876,7 +1004,7 @@ const BAHA_BAHA_EXCEL_CURVES = {"50":{"flow":[0,15,30,60,90,120,150],"head":[87,
 // is the actual measured "Power pumpset" figure from each sheet (2023 uses the behind-VFD
 // reading, 46.2 kW, matching the workbook's own Eff.Pump denominator), so eff = Phydr/power
 // exactly for every year, including "design".
-const BAHA_BAHA_EXCEL_DUTY = {"design":{"flow":144,"head":80,"eff":80,"power":45,"label":"Design duty 144 m³/h @ 80 m"},"2022":{"flow":144.0,"head":63.78,"eff":53.0254237288136,"power":47.2,"label":"Measured value '22"},"2023":{"flow":154.8,"head":56.43,"eff":51.5235214285714,"power":46.2,"label":"Measured value '23"},"2026":{"flow":160.2,"head":67.80,"eff":55.6332818952175,"power":53.2,"label":"Measured value '26"}};
+const BAHA_BAHA_EXCEL_DUTY = {"design":{"flow":144,"head":80,"eff":80,"power":45,"label":"Design duty 144 m³/h @ 80 m"},"2022":{"flow":144.0,"head":63.78,"eff":53.03,"power":47.2,"label":"Measured value '22"},"2023":{"flow":154.8,"head":56.43,"eff":51.52,"power":46.2,"label":"Measured value '23"},"2026":{"flow":160.2,"head":67.8,"eff":55.63,"power":53.2,"label":"Measured value '26"}};
 
 function isBahaBahaSite(rows) {
   return rows.length > 0 && rows.every(r => normalizeSite(r.site || '') === normalizeSite('Baha Baha'));
@@ -1091,10 +1219,10 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
               const ds = ctx.dataset;
               const info = ds._dutyInfo;
               if (info) {
-                return `${ds.label}: ${info.flow} m³/h · ${info.head} m · ${info.power} kW · ${info.eff}%`;
+                return `${ds.label}: ${round2(info.flow)} m³/h · ${round2(info.head)} m · ${round2(info.power)} kW · ${round2(info.eff)}%`;
               }
               const unit = ds.yAxisID === 'yEff' ? '%' : ds.yAxisID === 'yPower' ? ' kW' : ' m';
-              return `${ds.label}: ${ctx.parsed.x} m³/h · ${ctx.parsed.y}${unit}`;
+              return `${ds.label}: ${round2(ctx.parsed.x)} m³/h · ${round2(ctx.parsed.y)}${unit}`;
             }
           }
         }
@@ -1644,7 +1772,10 @@ function escapeHtml(str) {
 }
 function escapeAttr(str) { return escapeHtml(str); }
 function normalizeSite(s) {
-  return String(s || '').toUpperCase().replace(/[^A-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+  // Kept in sync with Code.gs's normalizeSite (fixed 2026-08): hyphens/underscores
+  // fold to spaces before stripping, so "Baha-Baha" (a "Graph *" tab name) and
+  // "Baha Baha" (the site field on audits) normalize identically.
+  return String(s || '').toUpperCase().replace(/[-_]/g, ' ').replace(/[^A-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
 }
 
 // Auto-login if a session token already exists in this tab.
