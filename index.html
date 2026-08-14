@@ -1,38 +1,2101 @@
-<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>AGUS CWD Energy Audit</title><script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4"></script><style>
-:root{--bg:#f4f8f8;--panel:#fff;--ink:#17343a;--muted:#6a858a;--line:#dce8e9;--teal:#0b6b78;--teal2:#0e8794;--red:#c8443f;--green:#2f9e6f;--amber:#c9821e;--blue:#2e7da6;--shadow:0 8px 24px rgba(24,60,65,.08)}*{box-sizing:border-box}body{margin:0;font-family:Inter,Segoe UI,Arial,sans-serif;background:var(--bg);color:var(--ink)}button,input,select,textarea{font:inherit}button{cursor:pointer}.app{min-height:100vh}.top{background:linear-gradient(135deg,#075c68,#0e8794);color:#fff;padding:18px 24px;display:flex;justify-content:space-between;align-items:center;gap:20px}.brand h1{font-size:22px;margin:0}.brand p{margin:4px 0 0;opacity:.78;font-size:12px}.top-actions{display:flex;gap:8px;align-items:center}.btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:9px;padding:9px 13px;font-weight:700}.btn.primary{background:var(--teal);color:#fff;border-color:var(--teal)}.btn.danger{color:#a52d2d}.btn.ghost{background:transparent;color:inherit;border-color:rgba(255,255,255,.35)}.wrap{max-width:1500px;margin:auto;padding:18px}.toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}.toolbar select,.toolbar input{background:#fff;border:1px solid var(--line);border-radius:9px;padding:9px 11px}.grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(0,1.85fr);gap:16px}.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;box-shadow:var(--shadow);padding:16px}.panel h2{margin:0 0 12px;font-size:16px}.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}.stat{background:#f7fbfb;border:1px solid var(--line);border-radius:10px;padding:12px}.stat .label{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.stat .value{font-size:21px;font-weight:800;margin-top:4px}.table-wrap{overflow:auto;max-height:560px}table{width:100%;border-collapse:collapse;font-size:12px}th,td{padding:8px;border-bottom:1px solid var(--line);text-align:left;white-space:nowrap}th{position:sticky;top:0;background:#f2f8f8;color:#4c7076;z-index:1}.actions{display:flex;gap:5px}.small{font-size:11px;color:var(--muted)}.chartbox{height:600px}.curves{display:grid;grid-template-columns:1fr;gap:16px;margin-top:16px}.curve-head{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}.curve-head h3{margin:0}.meta{color:var(--muted);font-size:12px;margin-top:3px}.curvebox{height:520px}.login{min-height:100vh;display:grid;place-items:center;padding:20px}.login-card{width:min(430px,100%);background:#fff;border:1px solid var(--line);border-radius:16px;padding:28px;box-shadow:var(--shadow)}.login-card h1{margin:0}.field{margin:10px 0}.field label{display:block;font-size:12px;color:var(--muted);font-weight:700;margin-bottom:5px}.field input,.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:9px}.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}.formgrid .span2{grid-column:1/-1}.modal-bg{position:fixed;inset:0;background:rgba(8,39,44,.45);display:grid;place-items:center;padding:18px;z-index:50}.modal{width:min(900px,100%);max-height:92vh;overflow:auto;background:#fff;border-radius:15px;padding:18px;box-shadow:0 20px 60px rgba(0,0,0,.2)}.modal h2{margin:0 0 15px}.modal-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:15px}.tabs{display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap}.tab{border:0;background:#e7f0f1;color:#48676c;padding:9px 12px;border-radius:9px;font-weight:700}.tab.active{background:var(--teal);color:#fff}.hidden{display:none!important}.notice{padding:10px 12px;background:#fff8e9;border:1px solid #f0d99c;border-radius:9px;font-size:12px;margin-bottom:12px}.badge{display:inline-block;padding:4px 7px;border-radius:99px;background:#e9f5f1;color:#257a58;font-weight:800;font-size:10px}.login-error{color:#a52d2d;font-size:12px;margin-top:8px}@media(max-width:1050px){.grid{grid-template-columns:1fr}.stats{grid-template-columns:repeat(2,1fr)}}@media(max-width:600px){.formgrid{grid-template-columns:1fr}.stats{grid-template-columns:1fr}.top{padding:15px}.wrap{padding:10px}.chartbox,.curvebox{height:470px}}
-</style></head><body><div id="root"></div><script>
-const API=localStorage.getItem('agus_energy_audit_api_url')||'';let token=localStorage.getItem('agus_energy_token')||'',role=localStorage.getItem('agus_energy_role')||'',username=localStorage.getItem('agus_energy_user')||'';let audits=[],details=[],curves=[],auditChart,curveCharts={};
-const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));const n=x=>x===''||x==null?null:Number(x);const fmt=(x,d=2)=>x==null||isNaN(x)?'—':Number(x).toFixed(d);
-async function post(action,p={}){const r=await fetch(API,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,token,...p})});const j=await r.json();if(!j.ok)throw Error(j.error||'Request failed');return j}async function get(action){const u=new URL(API);u.searchParams.set('action',action);u.searchParams.set('token',token);const r=await fetch(u);const j=await r.json();if(!j.ok)throw Error(j.error||'Request failed');return j}
-function loginView(err=''){root.innerHTML=`<div class="login"><div class="login-card"><div class="badge">AGUS · CWD ENERGY AUDIT</div><h1 style="margin-top:10px">Multi-Station Energy Audit</h1><p class="small"></p><div class="field"><label>Username</label><input id="user" value="admin"></div><div class="field"><label>Password</label><input id="pass" type="password"></div><button class="btn primary" style="width:100%" onclick="doLogin()">Sign in</button>${err?`<div class="login-error">${esc(err)}</div>`:''}</div></div>`}
-async function doLogin(){try{const api=API||localStorage.getItem('agus_energy_audit_api_url')||'';if(!api)throw Error('Apps Script connection is not configured.');window.API=api;const j=await postNoToken('login',{username:document.getElementById('user').value,password:document.getElementById('pass').value});if(!j.ok)throw Error(j.error);token=j.token;role=j.role;username=j.username;localStorage.setItem('agus_energy_token',token);localStorage.setItem('agus_energy_role',role);localStorage.setItem('agus_energy_user',username);await start()}catch(e){loginView(e.message)}}
-async function postNoToken(action,p){const r=await fetch(localStorage.getItem('agus_energy_audit_api_url')||document.getElementById('api').value,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,...p})});return r.json()}
-function shell(){root.innerHTML=`<div class="app"><header class="top"><div class="brand"><h1>AGUS CWD Energy Audit</h1><p>Multi-pumping-station performance · energy · efficiency · duty-point dashboard</p></div><div class="top-actions"><span>${esc(username)} · ${esc(role)}</span><button class="btn ghost" onclick="logout()">Logout</button></div></header><main class="wrap"><div class="toolbar"><select id="siteSel" onchange="renderAll()"><option value="ALL">All Pump Stations</option></select><button class="btn primary" onclick="auditModal()">+ Add Audit</button><button class="btn" onclick="stationModal()">+ Add / Edit Station</button><button class="btn" onclick="curveModal()">Edit Pump Curve</button>${role==='admin'?`<button class="btn" onclick="usersModal()">Users</button>`:''}<button class="btn" onclick="reload()">Refresh</button></div><div class="tabs"><button id="tAudit" class="tab active" onclick="tab('audit')">Energy Audit</button><button id="tCurve" class="tab" onclick="tab('curve')">Pump Performance</button><button id="tFleet" class="tab" onclick="tab('fleet')">Station Fleet</button></div><section id="viewAudit"><div class="stats" id="stats"></div><div class="grid"><div class="panel"><h2>Audit History</h2><div class="table-wrap"><table><thead><tr><th>Date</th><th>Station</th><th>V</th><th>A</th><th>PF</th><th>Hz</th><th>kW</th><th>Flow</th><th>Head</th><th>Eff.</th><th>Actions</th></tr></thead><tbody id="auditRows"></tbody></table></div></div><div class="panel"><h2>Energy Performance Trend</h2><div class="chartbox"><canvas id="trend"></canvas></div></div></div></section><section id="viewCurve" class="hidden"><div class="notice">Baha Baha is the visual basis: every station uses the same Head / Efficiency / Power chart language, with design point and measured duty points. Curve data remains in the workbook, so adding or editing a station does not require editing HTML.</div><div id="curveGrid" class="curves"></div></section><section id="viewFleet" class="hidden"><div class="panel"><h2>Pump Station Registry</h2><div class="table-wrap"><table><thead><tr><th>Station</th><th>Manufacturer</th><th>Model</th><th>Design Flow</th><th>Design Head</th><th>Design Eff.</th><th>Design Power</th><th>Hz</th><th>Actions</th></tr></thead><tbody id="fleetRows"></tbody></table></div></div></section></main></div>`}
-function tab(x){['audit','curve','fleet'].forEach(a=>{document.getElementById('view'+a[0].toUpperCase()+a.slice(1)).classList.toggle('hidden',a!==x);document.getElementById('t'+a[0].toUpperCase()+a.slice(1)).classList.toggle('active',a===x)});if(x==='curve')renderCurves();}
-function selected(){return document.getElementById('siteSel')?.value||'ALL'}function filtered(){let s=selected();return s==='ALL'?audits:audits.filter(a=>String(a.site)===s)}
-function renderAll(){renderStats();renderAudits();renderTrend();renderCurves();renderFleet()}
-function renderStats(){const r=filtered(),eff=r.map(x=>n(x.eff)).filter(x=>x!=null),sp=r.map(x=>n(x.specific)).filter(x=>x!=null),kw=r.map(x=>n(x.elecKw)).filter(x=>x!=null);const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;document.getElementById('stats').innerHTML=[['Audits',r.length,'records'],['Avg Efficiency',fmt(avg(eff),1),'wire-to-water'],['Avg Specific Energy',fmt(avg(sp),3),'kWh/m³'],['Peak Electrical',fmt(kw.length?Math.max(...kw):null,2),'kW']].map(x=>`<div class="stat"><div class="label">${x[0]}</div><div class="value">${x[1]}</div><div class="small">${x[2]}</div></div>`).join('')}
-function renderAudits(){const rows=filtered();document.getElementById('auditRows').innerHTML=rows.map(a=>`<tr><td>${esc(a.date)}</td><td><b>${esc(a.site)}</b></td><td>${fmt(a.volts)}</td><td>${fmt(a.amps)}</td><td>${fmt(a.pf)}</td><td>${fmt(a.operatingHz)}</td><td>${fmt(a.elecKw)}</td><td>${fmt(a.lps)}</td><td>${fmt(a.head)}</td><td>${fmt(a.eff,1)}%</td><td class="actions">${role==='admin'?`<button class="btn" onclick="auditModal(${a.row})">Edit</button><button class="btn danger" onclick="delAudit(${a.row})">Delete</button>`:''}</td></tr>`).join('')||`<tr><td colspan="11">No audit records.</td></tr>`}
-function renderTrend(){if(auditChart)auditChart.destroy();const ctx=document.getElementById('trend');if(!ctx)return;const r=[...filtered()].reverse();auditChart=new Chart(ctx,{type:'line',data:{labels:r.map(x=>x.date||''),datasets:[{label:'Electrical kW',data:r.map(x=>x.elecKw),tension:.25},{label:'Hydraulic kW',data:r.map(x=>x.hydKw),tension:.25,borderDash:[5,4]},{label:'Efficiency %',data:r.map(x=>x.eff),yAxisID:'y1',tension:.25}]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},scales:{y:{title:{display:true,text:'kW'}},y1:{position:'right',title:{display:true,text:'Efficiency %'},grid:{display:false}}}}})}
-function groupCurves(site){const g={};site.curves.forEach(c=>{const hz=Number(c.hz);if(!g[hz])g[hz]=[];g[hz].push(c)});return g}
-function renderCurves(){const grid=document.getElementById('curveGrid');if(!grid)return;Object.values(curveCharts).forEach(c=>c.destroy());curveCharts={};let list=curves;if(selected()!=='ALL')list=list.filter(x=>String(x.site)===selected());grid.innerHTML=list.map(s=>{const d=details.find(x=>String(x.borehole)===String(s.site))||{};return `<div class="panel"><div class="curve-head"><div><h3>${esc(s.site)}</h3><div class="meta">${esc(d.manufacturer||'')} · ${esc(d.model||'')} · Design ${fmt(d.designFlow)} m³/h @ ${fmt(d.designHead)} m</div></div><button class="btn" onclick="curveModal('${esc(s.site)}')">Edit Curve</button></div><div class="curvebox"><canvas id="c_${encodeURIComponent(s.site)}"></canvas></div></div>`}).join('')||'<div class="panel">No pump curves found. Add a station and curve.</div>';list.forEach(s=>drawCurve(s))}
-function drawCurve(s){const el=document.getElementById('c_'+encodeURIComponent(s.site));if(!el)return;const d=details.find(x=>String(x.borehole)===String(s.site))||{};const g=groupCurves(s);const datasets=[];const freqs=Object.keys(g).sort((a,b)=>a-b);freqs.forEach((hz,idx)=>{const p=g[hz];const base=idx===0;datasets.push({label:`Head ${hz} Hz${base?' (original)':''}`,data:p.map(x=>({x:x.flow,y:x.head})),showLine:true,tension:.2,yAxisID:'head',pointRadius:base?2:3,borderWidth:base?3:2,fill:base?'origin':false});datasets.push({label:`Efficiency ${hz} Hz`,data:p.map(x=>({x:x.flow,y:x.eff})),showLine:true,tension:.2,yAxisID:'eff',pointRadius:2,borderDash:[5,4],borderWidth:1.5});datasets.push({label:`Power ${hz} Hz`,data:p.map(x=>({x:x.flow,y:x.power})),showLine:true,tension:.2,yAxisID:'power',pointRadius:2,borderDash:[2,3],borderWidth:1.5})});const stationAudits=audits.filter(a=>String(a.site)===String(s.site));const duty=stationAudits.map(a=>({x:a.lps!=null?a.lps*3.6:null,y:a.head,label:a.date,eff:a.eff,power:a.elecKw})).filter(x=>x.x!=null&&x.y!=null);if(duty.length)datasets.push({label:'Measured Duty Point',data:duty,showLine:false,pointRadius:7,pointHoverRadius:9,pointStyle:'rectRot',yAxisID:'head'});if(d.designFlow!=null&&d.designHead!=null)datasets.push({label:'Design Duty',data:[{x:Number(d.designFlow),y:Number(d.designHead)}],showLine:false,pointRadius:9,pointHoverRadius:11,pointStyle:'rectRot',yAxisID:'head'});curveCharts[s.id]=new Chart(el,{type:'scatter',data:{datasets},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'nearest',intersect:false},plugins:{legend:{position:'top',labels:{boxWidth:18,usePointStyle:true}},tooltip:{callbacks:{label:(ctx)=>{const x=ctx.raw||{};return `${ctx.dataset.label}: ${x.x!=null?Number(x.x).toFixed(1):'—'} m³/h @ ${x.y!=null?Number(x.y).toFixed(1):'—'} m${x.eff!=null?' · '+Number(x.eff).toFixed(1)+'%':''}`}}}},scales:{x:{type:'linear',title:{display:true,text:'Flow [m³/h]'}},head:{type:'linear',position:'left',title:{display:true,text:'Head [m]'}},eff:{type:'linear',position:'right',title:{display:true,text:'Efficiency [%]'},grid:{drawOnChartArea:false}},power:{type:'linear',position:'right',title:{display:true,text:'Power [kW]'},grid:{drawOnChartArea:false},display:false}}}})}
-function renderFleet(){document.getElementById('fleetRows').innerHTML=details.map(d=>`<tr><td><b>${esc(d.borehole)}</b></td><td>${esc(d.manufacturer)}</td><td>${esc(d.model)}</td><td>${fmt(d.designFlow)}</td><td>${fmt(d.designHead)}</td><td>${fmt(d.designEff,1)}%</td><td>${fmt(d.designPower)}</td><td>${fmt(d.hz)}</td><td class="actions">${role==='admin'?`<button class="btn" onclick="stationModal('${esc(d.borehole)}')">Edit</button><button class="btn danger" onclick="delStation('${esc(d.borehole)}')">Delete</button>`:''}</td></tr>`).join('')}
-function modal(title,body){const bg=document.createElement('div');bg.className='modal-bg';bg.innerHTML=`<div class="modal"><h2>${title}</h2>${body}</div>`;document.body.appendChild(bg);bg.onclick=e=>{if(e.target===bg)bg.remove()};return bg}
-function auditModal(row=null){if(role!=='admin')return;const a=row?audits.find(x=>x.row===row):{};const b=modal(row?'Edit Energy Audit':'Add Energy Audit',`<div class="formgrid"><div class="field"><label>Station</label><input id="f_site" value="${esc(a.site||'')}" list="siteList"><datalist id="siteList">${details.map(d=>`<option value="${esc(d.borehole)}">`).join('')}</datalist></div><div class="field"><label>Audit date</label><input id="f_date" value="${esc(a.date||'')}"></div><div class="field"><label>Manufacturer</label><input id="f_man" value="${esc(a.manufacturer||'')}"></div><div class="field"><label>Model</label><input id="f_model" value="${esc(a.model||'')}"></div><div class="field"><label>Voltage V</label><input id="f_v" type="number" step="0.01" value="${a.volts??''}"></div><div class="field"><label>Current A</label><input id="f_i" type="number" step="0.01" value="${a.amps??''}"></div><div class="field"><label>Power Factor</label><input id="f_pf" type="number" step="0.01" value="${a.pf??''}"></div><div class="field"><label>Electrical kW (manual if no V/A/PF)</label><input id="f_kw" type="number" step="0.01" value="${a.elecKw??''}"></div><div class="field"><label>Operating Hz</label><input id="f_hz" type="number" step="0.01" value="${a.operatingHz??''}"></div><div class="field"><label>Flow L/s</label><input id="f_q" type="number" step="0.01" value="${a.lps??''}"></div><div class="field"><label>Head m</label><input id="f_h" type="number" step="0.01" value="${a.head??''}"></div><div class="field"><label>Meter kWh</label><input id="f_kwh" type="number" step="0.01" value="${a.meterKwh??''}"></div><div class="field span2"><label>Notes</label><textarea id="f_note">${esc(a.note||'')}</textarea></div></div><div class="modal-actions"><button class="btn" onclick="this.closest('.modal-bg').remove()">Cancel</button><button class="btn primary" onclick="saveAuditForm(${row||'null'},this)">Save Audit</button></div>`)}
-async function saveAuditForm(row,btn){try{btn.disabled=true;const e={site:v('f_site'),date:v('f_date'),manufacturer:v('f_man'),model:v('f_model'),volts:n(v('f_v')),amps:n(v('f_i')),pf:n(v('f_pf')),elecKw:n(v('f_kw')),operatingHz:n(v('f_hz')),lps:n(v('f_q')),head:n(v('f_h')),meterKwh:n(v('f_kwh')),note:v('f_note')};await post(row?'updateAudit':'addAudit',row?{row,entry:e}:{entry:e});btn.closest('.modal-bg').remove();await reload()}catch(x){alert(x.message);btn.disabled=false}}
-function v(id){return document.getElementById(id).value.trim()}
-async function delAudit(row){if(confirm('Delete this audit record?')){try{await post('deleteAudit',{row});await reload()}catch(e){alert(e.message)}}}
-function stationModal(site=''){if(role!=='admin')return;const d=details.find(x=>String(x.borehole)===String(site))||{};const b=modal(site?'Edit Pump Station':'Add Pump Station',`<div class="formgrid"><div class="field"><label>Station / Borehole Name</label><input id="s_site" value="${esc(d.borehole||site)}"></div><div class="field"><label>Manufacturer</label><input id="s_man" value="${esc(d.manufacturer||'')}"></div><div class="field"><label>Pump Model</label><input id="s_model" value="${esc(d.model||'')}"></div><div class="field"><label>Design Flow m³/h</label><input id="s_df" type="number" step="0.01" value="${d.designFlow??''}"></div><div class="field"><label>Design Head m</label><input id="s_dh" type="number" step="0.01" value="${d.designHead??''}"></div><div class="field"><label>Design Efficiency %</label><input id="s_de" type="number" step="0.01" value="${d.designEff??''}"></div><div class="field"><label>Design Power kW</label><input id="s_dp" type="number" step="0.01" value="${d.designPower??''}"></div><div class="field"><label>Operating / Design Hz</label><input id="s_hz" type="number" step="0.1" value="${d.hz??''}"></div><div class="field span2"><label>Source Workbook</label><input id="s_src" value="${esc(d.sourceWorkbook||'')}"></div></div><div class="modal-actions"><button class="btn" onclick="this.closest('.modal-bg').remove()">Cancel</button><button class="btn primary" onclick="saveStationForm(this)">Save Station</button></div>`)}
-async function saveStationForm(btn){try{btn.disabled=true;const e={site:v('s_site'),manufacturer:v('s_man'),model:v('s_model'),designFlow:n(v('s_df')),designHead:n(v('s_dh')),designEff:n(v('s_de')),designPower:n(v('s_dp')),hz:n(v('s_hz')),sourceWorkbook:v('s_src')};await post('saveStation',{station:e,originalSite:site});btn.closest('.modal-bg').remove();await reload()}catch(e){alert(e.message);btn.disabled=false}}
-async function delStation(site){if(confirm('Delete station details and its pump curve? Audit records are retained.')){try{await post('deleteStation',{site});await reload()}catch(e){alert(e.message)}}}
-function curveModal(site=''){if(role!=='admin')return;site=site||selected();if(site==='ALL')return alert('Select a station first.');const s=curves.find(x=>String(x.site)===String(site))||{site,curves:[]};const b=modal('Edit Pump Curve — '+esc(site),`<p class="small">Enter one row per curve point. Frequency separates curves. Use m³/h, m head, % efficiency, kW power.</p><div id="curveEditor"></div><div class="modal-actions"><button class="btn" onclick="this.closest('.modal-bg').remove()">Cancel</button><button class="btn" onclick="addCurveRow()">+ Row</button><button class="btn primary" onclick="saveCurveForm('${esc(site)}',this)">Save Curve</button></div>`);const ed=b.querySelector('#curveEditor');(s.curves.length?s.curves:[{hz:60,flow:0,head:'',eff:'',power:''}]).forEach(x=>curveRow(ed,x))}
-function curveRow(ed,x){const d=document.createElement('div');d.className='formgrid curve-row';d.style.marginBottom='6px';d.innerHTML=`<div class="field"><label>Hz</label><input class="hz" type="number" step="0.1" value="${x.hz??''}"></div><div class="field"><label>Flow m³/h</label><input class="flow" type="number" step="0.01" value="${x.flow??''}"></div><div class="field"><label>Head m</label><input class="head" type="number" step="0.01" value="${x.head??''}"></div><div class="field"><label>Efficiency %</label><input class="eff" type="number" step="0.01" value="${x.eff??''}"></div><div class="field"><label>Power kW</label><input class="power" type="number" step="0.01" value="${x.power??''}"></div><div class="field"><label>&nbsp;</label><button class="btn danger" onclick="this.closest('.curve-row').remove()">Remove</button></div>`;ed.appendChild(d)}
-function addCurveRow(){curveRow(document.getElementById('curveEditor'),{hz:60,flow:'',head:'',eff:'',power:''})}
-async function saveCurveForm(site,btn){try{btn.disabled=true;const rows=[...document.querySelectorAll('.curve-row')].map(r=>({hz:n(r.querySelector('.hz').value),flow:n(r.querySelector('.flow').value),head:n(r.querySelector('.head').value),eff:n(r.querySelector('.eff').value),power:n(r.querySelector('.power').value)})).filter(x=>x.hz!=null&&x.flow!=null&&x.head!=null);await post('saveCurve',{site,rows});btn.closest('.modal-bg').remove();await reload()}catch(e){alert(e.message);btn.disabled=false}}
-function usersModal(){if(role!=='admin')return;get('users').then(j=>{const b=modal('User Administration',`<div class="table-wrap"><table><thead><tr><th>Username</th><th>Role</th><th>Active</th><th>Actions</th></tr></thead><tbody>${j.users.map(u=>`<tr><td>${esc(u.username)}</td><td>${esc(u.role)}</td><td>${u.active?'Yes':'No'}</td><td><button class="btn" onclick="userEdit(${u.row},'${esc(u.username)}','${esc(u.role)}',${u.active})">Edit</button></td></tr>`).join('')}</tbody></table></div><div class="modal-actions"><button class="btn primary" onclick="userEdit(null)">+ Add User</button></div>`)}).catch(e=>alert(e.message))}
-function userEdit(row,u='',r='viewer',active=true){const b=modal(row?'Edit User':'Add User',`<div class="formgrid"><div class="field"><label>Username</label><input id="u_user" value="${esc(u)}"></div><div class="field"><label>Password ${row?'(blank = keep)':''}</label><input id="u_pass" type="password"></div><div class="field"><label>Role</label><select id="u_role"><option ${r==='admin'?'selected':''}>admin</option><option ${r==='viewer'?'selected':''}>viewer</option></select></div><div class="field"><label>Active</label><select id="u_active"><option value="true" ${active?'selected':''}>Yes</option><option value="false" ${!active?'selected':''}>No</option></select></div></div><div class="modal-actions"><button class="btn" onclick="this.closest('.modal-bg').remove()">Cancel</button><button class="btn primary" onclick="saveUser(${row||'null'},this)">Save</button></div>`)}
-async function saveUser(row,btn){try{const p={username:v('u_user'),password:v('u_pass'),role:v('u_role'),active:v('u_active')==='true'};await post(row?'updateUser':'addUser',row?{row,...p}:p);btn.closest('.modal-bg').remove();usersModal()}catch(e){alert(e.message)}}
-async function reload(){const j=await get('bundle');audits=j.audits||[];details=j.details||[];curves=j.curves||[];const sel=document.getElementById('siteSel');const old=sel?.value||'ALL';if(sel)sel.innerHTML='<option value="ALL">All Pump Stations</option>'+details.map(d=>`<option value="${esc(d.borehole)}">${esc(d.borehole)}</option>`).join('');if(sel)sel.value=[...sel.options].some(o=>o.value===old)?old:'ALL';renderAll()}
-async function start(){shell();try{await reload()}catch(e){if(/expired|auth/i.test(e.message)){logout()}else alert(e.message)}}function logout(){token='';localStorage.removeItem('agus_energy_token');localStorage.removeItem('agus_energy_role');localStorage.removeItem('agus_energy_user');loginView()}window.addEventListener('load',()=>{if(token&&API)start();else loginView()});
-</script></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AGUS · Pumping Station Energy Audit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script>
+  // Applied immediately (before body paints) to avoid a flash of the wrong theme.
+  (function(){
+    try {
+      const saved = localStorage.getItem('agus-theme');
+      // Dark mode is the default for the Pumping Station Energy Audit dashboard.
+      const theme = saved || 'dark';
+      if (theme === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+    } catch (e) { /* localStorage unavailable — default to light */ }
+  })();
+</script>
+<style>
+  :root{
+    --bg:#f4f9fa;
+    --bg-panel:#ffffff;
+    --bg-card:#ffffff;
+    --bg-card-hover:#ecf6f7;
+    --border:#d3e6e7;
+    --border-soft:#e6f0f1;
+    --text:#10343c;
+    --text-muted:#57777d;
+    --text-faint:#8fafb5;
+    --teal:#0a7f93;
+    --teal-dim:#dceff3;
+    --amber:#c9821e;
+    --amber-dim:#f9eed8;
+    --red:#c8443f;
+    --red-dim:#fbe6e5;
+    --blue:#2e7da6;
+    --blue-dim:#e1eef4;
+    --green:#2f9e6f;
+    --purple:#6d54ab;
+    --radius:10px;
+    --mono:'IBM Plex Mono', ui-monospace, monospace;
+    --sans:'IBM Plex Sans', system-ui, sans-serif;
+    --display:'Space Grotesk', 'IBM Plex Sans', sans-serif;
+    --topbar-bg:rgba(255,255,255,0.85);
+    --chart-border:#ffffff;
+    color-scheme: light;
+  }
+  html[data-theme="dark"]{
+    --bg:#0b1416;
+    --bg-panel:#101c1f;
+    --bg-card:#132226;
+    --bg-card-hover:#17282c;
+    --border:#233a3f;
+    --border-soft:#1b2e32;
+    --text:#e6f2f3;
+    --text-muted:#9db8bc;
+    --text-faint:#5f7d82;
+    --teal:#2fc4d8;
+    --teal-dim:#13343c;
+    --amber:#e0a742;
+    --amber-dim:#3a2f16;
+    --red:#e56c66;
+    --red-dim:#3a1c1c;
+    --blue:#5fa8d6;
+    --blue-dim:#152836;
+    --green:#4fc48f;
+    --purple:#a78bda;
+    --topbar-bg:rgba(16,28,31,0.85);
+    --chart-border:#132226;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:
+      radial-gradient(circle at 15% 0%, rgba(10,127,147,0.05), transparent 45%),
+      radial-gradient(circle at 85% 15%, rgba(46,125,166,0.04), transparent 50%),
+      var(--bg);
+    color:var(--text);
+    font-family:var(--sans);
+    min-height:100vh;
+    -webkit-font-smoothing:antialiased;
+    transition:background-color .15s,color .15s;
+  }
+  html[data-theme="dark"] body{
+    background:
+      radial-gradient(circle at 15% 0%, rgba(47,196,216,0.06), transparent 45%),
+      radial-gradient(circle at 85% 15%, rgba(95,168,214,0.05), transparent 50%),
+      var(--bg);
+  }
+  .theme-toggle{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:32px;height:32px;border-radius:7px;border:1px solid var(--border);
+    background:var(--bg-card);color:var(--text-muted);flex-shrink:0;
+    font-size:16px;line-height:1;
+    transition:all .15s;
+  }
+  .theme-toggle:hover{color:var(--teal);border-color:var(--teal);}
+  .theme-toggle .icon-sun{display:none;}
+  .theme-toggle .icon-moon{display:inline;}
+  html[data-theme="dark"] .theme-toggle .icon-moon{display:none;}
+  html[data-theme="dark"] .theme-toggle .icon-sun{display:inline;}
+  .login-theme-toggle{position:absolute;top:16px;right:16px;}
+  ::selection{background:var(--teal-dim);color:var(--text);}
+  button{font-family:var(--sans);cursor:pointer;}
+  input,select,textarea{font-family:var(--sans);}
+  a{color:var(--teal);}
+
+  /* ---------- utility ---------- */
+  .hidden{display:none !important;}
+  .mono{font-family:var(--mono);}
+
+  /* ---------- login ---------- */
+  #loginScreen{
+    min-height:100vh;display:flex;align-items:center;justify-content:center;
+    padding:24px;
+  }
+  .login-card{
+    width:100%;max-width:380px;
+    background:var(--bg-panel);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:36px 32px;
+    position:relative;
+    overflow:hidden;
+    box-shadow:0 8px 30px rgba(10,127,147,0.08);
+  }
+  .login-card::before{
+    content:'';position:absolute;top:0;left:0;right:0;height:3px;
+    background:linear-gradient(90deg,var(--teal),var(--blue));
+  }
+  .login-eyebrow{
+    font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--teal);
+    text-transform:uppercase;margin-bottom:8px;
+  }
+  .login-card h1{
+    font-family:var(--display);font-size:24px;margin:0 0 4px;font-weight:600;
+  }
+  .login-card p.sub{color:var(--text-muted);font-size:13px;margin:0 0 28px;line-height:1.5;}
+  .field{margin-bottom:16px;}
+  .field label{display:block;font-size:12px;color:var(--text-muted);margin-bottom:6px;letter-spacing:.02em;}
+  .field input{
+    width:100%;padding:11px 12px;background:var(--bg-card);border:1px solid var(--border);
+    border-radius:7px;color:var(--text);font-size:14px;outline:none;transition:border-color .15s;
+  }
+  .field input:focus{border-color:var(--teal);}
+  .btn{
+    display:inline-flex;align-items:center;justify-content:center;gap:8px;
+    padding:11px 18px;border-radius:7px;border:1px solid transparent;
+    font-size:13.5px;font-weight:600;transition:all .15s;
+  }
+  .btn-primary{background:var(--teal);color:#ffffff;width:100%;}
+  .btn-primary:hover{background:#086b7c;}
+  .btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+  .btn-ghost{background:transparent;border-color:var(--border);color:var(--text-muted);}
+  .btn-ghost:hover{color:var(--text);border-color:var(--text-faint);}
+  .btn-danger{background:transparent;border-color:var(--red);color:var(--red);}
+  .btn-danger:hover{background:var(--red-dim);}
+  .login-error{
+    background:var(--red-dim);border:1px solid var(--red);color:#7a1f1f;
+    padding:9px 12px;border-radius:7px;font-size:12.5px;margin-top:14px;
+  }
+  .login-api{margin-top:22px;padding-top:18px;border-top:1px solid var(--border-soft);}
+
+  /* ---------- app shell ---------- */
+  #app{display:none;min-height:100vh;flex-direction:column;}
+  header.topbar{
+    display:flex;align-items:center;gap:20px;
+    padding:14px 24px;border-bottom:1px solid var(--border);
+    background:var(--topbar-bg);backdrop-filter:blur(6px);
+    box-shadow:0 1px 0 rgba(10,127,147,0.03);
+    position:sticky;top:0;z-index:20;
+  }
+  .brand{display:flex;align-items:center;gap:10px;cursor:pointer;flex-shrink:0;}
+  .brand-mark{
+    width:30px;height:30px;border-radius:7px;
+    background:linear-gradient(135deg,var(--teal),var(--blue));
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--display);font-weight:700;font-size:14px;color:#ffffff;
+  }
+  .brand-text{display:flex;flex-direction:column;line-height:1.1;}
+  .brand-text b{font-family:var(--display);font-size:15px;font-weight:600;}
+  .brand-text span{font-size:10.5px;color:var(--text-faint);letter-spacing:.08em;font-family:var(--mono);}
+
+  nav.topnav{display:flex;gap:4px;margin-left:auto;flex-wrap:wrap;}
+  .navbtn{
+    padding:8px 14px;border-radius:7px;border:1px solid transparent;background:transparent;
+    color:var(--text-muted);font-size:13px;font-weight:600;white-space:nowrap;
+  }
+  .navbtn:hover{color:var(--text);background:var(--bg-card);}
+  .navbtn.active{color:var(--teal);background:var(--teal-dim);}
+
+  main{flex:1;padding:24px;max-width:1500px;width:100%;margin:0 auto;}
+
+  /* ---------- panels ---------- */
+  .audit-split{display:grid;grid-template-columns:minmax(330px,.82fr) minmax(620px,1.65fr);gap:18px;align-items:start;}
+  @media (max-width:1180px){.audit-split{grid-template-columns:minmax(300px,.72fr) minmax(560px,1.28fr);}}
+  @media (max-width:980px){.audit-split{grid-template-columns:1fr;}}
+  .panel{
+    background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius);
+    padding:18px 20px;box-shadow:0 1px 3px rgba(10,127,147,0.04);
+  }
+  .panel h3{
+    font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+    color:var(--teal);margin:0 0 14px;display:flex;align-items:center;gap:8px;
+  }
+  .panel h3 .hint{margin-left:auto;font-weight:400;letter-spacing:0;color:var(--text-faint);}
+
+  /* ---------- audit history list ---------- */
+  .log-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;gap:12px;flex-wrap:wrap;}
+  .log-list{display:flex;flex-direction:column;gap:10px;}
+  .log-entry{
+    background:var(--bg-panel);border:1px solid var(--border);border-left:3px solid var(--teal);
+    border-radius:8px;padding:13px 15px;transition:background .15s;
+  }
+  .log-entry:hover{background:var(--bg-card-hover);}
+  .log-entry .row1{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:6px;}
+  .log-entry .date{font-family:var(--mono);font-size:12.5px;color:var(--text);font-weight:600;}
+  .log-entry .site{font-size:12.5px;font-weight:700;color:var(--blue);}
+  .log-entry .row-actions{margin-left:auto;display:flex;gap:6px;}
+  .log-entry .row-actions button{
+    border:1px solid var(--border);background:transparent;color:var(--text-muted);
+    border-radius:6px;padding:4px 9px;font-size:11px;font-weight:700;cursor:pointer;
+  }
+  .log-entry .row-actions button:hover{color:var(--text);border-color:var(--text-faint);}
+  .log-entry .row-actions button.del:hover{color:var(--red);border-color:var(--red);}
+  .log-entry .details{font-size:13px;color:var(--text-muted);line-height:1.5;}
+  .log-entry .readings{display:flex;gap:14px;flex-wrap:wrap;margin-top:8px;}
+  .reading-chip{font-family:var(--mono);font-size:11px;color:var(--text-faint);}
+  .reading-chip b{color:var(--text);}
+
+  /* ---------- result ---------- */
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:12px;margin-bottom:16px;}
+  .stat{
+    background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);padding:13px 15px;
+  }
+  .stat .label{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-faint);margin-bottom:6px;}
+  .stat .value{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--teal);}
+  .stat .sub{font-size:11px;color:var(--text-faint);margin-top:3px;}
+
+  .chart-wrap{position:relative;height:505px;}
+  .duty-banner{display:grid;grid-template-columns:1.15fr 1fr 1fr 1fr;gap:8px;margin:0 0 10px;}
+  .result-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
+  .duty-box{background:var(--bg-card);border:1px solid var(--border-soft);border-radius:8px;padding:8px 10px;min-width:0;}
+  .duty-box .k{font:9.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint);white-space:nowrap;}
+  .duty-box .v{font:700 15px var(--mono);color:var(--text);margin-top:3px;white-space:nowrap;}
+  .duty-box.design{border-left:3px solid var(--red);}
+  .duty-box.actual{border-left:3px solid var(--amber);}
+  @media(max-width:700px){.duty-banner{grid-template-columns:1fr 1fr}.chart-wrap{height:430px;}}
+
+  .summary-table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .summary-table th{
+    text-align:left;font-family:var(--mono);font-size:10px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--text-faint);padding:8px 10px;border-bottom:1px solid var(--border);background:var(--bg-panel);
+  }
+  .summary-table td{padding:8px 10px;border-bottom:1px solid var(--border-soft);color:var(--text-muted);}
+  .summary-table tr:hover td{color:var(--text);}
+
+  /* ---------- modal ---------- */
+  .modal-backdrop{
+    position:fixed;inset:0;background:rgba(5,10,18,0.7);backdrop-filter:blur(2px);
+    display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;z-index:100;overflow-y:auto;
+  }
+  .modal{
+    background:var(--bg-panel);border:1px solid var(--border);border-radius:var(--radius);
+    width:100%;max-width:700px;padding:26px 28px 22px;
+  }
+  .modal h3{font-family:var(--display);margin:0 0 18px;font-size:18px;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;}
+  .form-grid .span2{grid-column:1/-1;}
+  .form-grid label{display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:5px;}
+  .form-grid input,.form-grid select,.form-grid textarea{
+    width:100%;padding:9px 10px;background:var(--bg-card);border:1px solid var(--border);
+    border-radius:6px;color:var(--text);font-size:13px;outline:none;
+  }
+  .form-grid input:focus,.form-grid select:focus,.form-grid textarea:focus{border-color:var(--teal);}
+  .form-grid textarea{resize:vertical;min-height:52px;font-family:var(--sans);}
+  .form-section-label{
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--text-faint);margin:16px 0 8px;grid-column:1/-1;
+  }
+  .modal-actions{display:flex;justify-content:space-between;align-items:center;margin-top:22px;}
+
+  /* ---------- chips ---------- */
+  .chiprow{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;}
+  .chip{
+    padding:6px 13px;border-radius:99px;border:1px solid var(--border);background:var(--bg-panel);
+    font-size:12.5px;color:var(--text-muted);font-weight:600;display:flex;align-items:center;gap:6px;
+  }
+  .chip.active{border-color:var(--teal);color:var(--teal);background:var(--teal-dim);}
+  .chip:hover{border-color:var(--text-faint);}
+  .chip .count{font-family:var(--mono);opacity:.7;}
+
+  /* ---------- pump curves ---------- */
+  .curve-grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;align-items:start;}
+  @media (max-width:980px){.curve-grid{grid-template-columns:1fr;}}
+  .curve-card{padding:14px 16px;}
+  .curve-card h3{font-family:var(--display);font-size:14px;color:var(--text);margin:0 0 4px;text-transform:none;letter-spacing:0;}
+  .curve-card .meta{font-size:11.5px;color:var(--text-faint);font-family:var(--mono);margin-bottom:10px;}
+  .curve-chart-wrap{position:relative;height:340px;}
+  .curve-hz-control{display:flex;align-items:center;gap:10px;margin:2px 0 12px;padding:8px 10px;background:var(--bg-card-hover);border:1px solid var(--border-soft);border-radius:8px;}
+  .curve-hz-control label{font-size:11px;font-family:var(--mono);color:var(--text-muted);white-space:nowrap;}
+  .curve-hz-control input[type=range]{flex:1;-webkit-appearance:none;appearance:none;height:4px;border-radius:2px;background:linear-gradient(90deg,var(--teal) 0%,var(--teal) var(--pct,50%),var(--border) var(--pct,50%),var(--border) 100%);outline:none;cursor:pointer;}
+  .curve-hz-control input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;appearance:none;width:15px;height:15px;border-radius:50%;background:var(--teal);border:2px solid var(--bg-panel);box-shadow:0 0 0 1px var(--teal);cursor:pointer;}
+  .curve-hz-control input[type=range]::-moz-range-thumb{width:15px;height:15px;border-radius:50%;background:var(--teal);border:2px solid var(--bg-panel);box-shadow:0 0 0 1px var(--teal);cursor:pointer;}
+  .curve-hz-control .hz-val{font-family:var(--mono);font-size:12.5px;font-weight:700;color:var(--teal);min-width:56px;text-align:right;}
+  .curve-hz-control .hz-note{width:100%;font-size:10.5px;color:var(--text-faint);font-family:var(--mono);margin-top:2px;}
+  .curve-legend-note{display:flex;gap:14px;flex-wrap:wrap;font-size:10.5px;color:var(--text-faint);font-family:var(--mono);margin:-4px 0 10px;}
+  .curve-legend-note span{display:flex;align-items:center;gap:5px;}
+  .curve-legend-note i{display:inline-block;width:12px;height:2px;border-radius:1px;}
+
+  /* ---------- users ---------- */
+  .users-toolbar{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+  .role-pill{
+    font-family:var(--mono);font-size:10.5px;font-weight:700;padding:2px 8px;border-radius:4px;
+    text-transform:uppercase;letter-spacing:.04em;
+  }
+  .role-pill.admin{color:var(--teal);background:var(--teal-dim);}
+  .role-pill.viewer{color:var(--blue);background:var(--blue-dim);}
+
+  /* ---------- toast ---------- */
+  #toast{
+    position:fixed;bottom:20px;right:20px;z-index:200;display:flex;flex-direction:column;gap:8px;
+  }
+  .toast-item{
+    background:var(--bg-panel);border:1px solid var(--border);border-left:3px solid var(--teal);
+    padding:11px 16px;border-radius:7px;font-size:13px;box-shadow:0 8px 24px rgba(0,0,0,.35);
+    animation:slideIn .2s ease;min-width:220px;
+  }
+  .toast-item.err{border-left-color:var(--red);}
+  @keyframes slideIn{from{opacity:0;transform:translateX(12px);}to{opacity:1;transform:translateX(0);}}
+
+  .spinner{
+    width:16px;height:16px;border-radius:50%;border:2px solid rgba(255,255,255,.25);
+    border-top-color:currentColor;animation:spin .7s linear infinite;
+  }
+  @keyframes spin{to{transform:rotate(360deg);}}
+
+  #loadingOverlay{
+    position:fixed;inset:0;background:rgba(10,18,32,.6);display:flex;align-items:center;justify-content:center;
+    z-index:150;color:var(--teal);
+  }
+
+  .empty-state{padding:30px 10px;text-align:center;color:var(--text-faint);}
+  .empty-state h3{font-family:var(--display);font-size:15px;color:var(--text-muted);margin:0 0 6px;text-transform:none;letter-spacing:0;}
+  .empty-state p{font-size:12.5px;margin:0;}
+
+  @media (max-width:720px){
+    header.topbar{flex-wrap:wrap;padding:12px 16px;}
+    nav.topnav{margin-left:0;}
+    main{padding:16px;}
+    .form-grid{grid-template-columns:1fr;}
+  }
+.source-note{margin:6px 2px 0;color:var(--text-faint);font-size:10px;font-family:'IBM Plex Mono',monospace}</style>
+</head>
+<body>
+
+<!-- ================= LOGIN ================= -->
+<div id="loginScreen">
+  <div class="login-card">
+    <button class="theme-toggle login-theme-toggle" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode">
+      <span class="icon-moon">&#9789;</span>
+      <span class="icon-sun">&#9728;</span>
+    </button>
+    <div class="login-eyebrow">AGUS · CWD Utility Systems</div>
+    <h1>Pumping Station Energy Audit</h1>
+    <p class="sub">Energy audit history, pump curves, and duty-point analysis for every pumping station. Sign in to view and edit records.</p>
+    <div class="field">
+      <label for="loginUsername">Username</label>
+      <input type="text" id="loginUsername" placeholder="e.g. admin" autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="loginPassword">Password</label>
+      <input type="password" id="loginPassword" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="btn btn-primary" id="loginBtn">Connect</button>
+    <div id="loginError" class="login-error hidden"></div>
+
+    <div class="login-api hidden" id="apiConfigBlock">
+      <div class="field" style="margin-bottom:0;">
+        <label for="apiUrlInput">Apps Script Web App URL</label>
+        <input type="text" id="apiUrlInput" placeholder="https://script.google.com/macros/s/…/exec">
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ================= APP ================= -->
+<div id="app">
+  <header class="topbar">
+    <div class="brand" onclick="showAudits()">
+      <div class="brand-mark">EA</div>
+      <div class="brand-text"><b>Pumping Station Energy Audit</b><span>AGUS · CWD</span></div>
+    </div>
+    <nav class="topnav">
+      <button class="navbtn active" data-view="audits" onclick="showAudits()">Audits</button>
+      <button class="navbtn" data-view="curves" onclick="showCurves()">Pump Curves</button>
+      <button class="navbtn hidden" id="usersNavBtn" data-view="users" onclick="showUsers()">Users</button>
+      <span id="whoami" class="mono" style="font-size:11.5px;color:var(--text-faint);align-self:center;padding:0 4px;"></span>
+      <button class="theme-toggle" onclick="toggleTheme()" title="Toggle dark mode" aria-label="Toggle dark mode">
+        <span class="icon-moon">&#9789;</span>
+        <span class="icon-sun">&#9728;</span>
+      </button>
+      <button class="navbtn" onclick="logout()" style="color:var(--red);">Log out</button>
+    </nav>
+  </header>
+
+  <main>
+    <div id="viewAudits">
+      <div class="audit-split">
+        <!-- LEFT: Audit History (raw data input) -->
+        <div class="panel">
+          <h3>Audit History <span class="hint" id="historyCount"></span></h3>
+          <div class="log-toolbar">
+            <div class="chiprow" id="siteChips" style="margin:0;"></div>
+            <div style="display:flex;gap:8px;">
+              <button class="btn btn-ghost" style="width:auto;" id="addLegacyAuditBtn" onclick="openLegacyAuditModal()">+ New yearly audit</button>
+              <button class="btn btn-primary" style="width:auto;" id="addAuditBtn" onclick="openAuditModal()">+ Add audit</button>
+            </div>
+          </div>
+          <div id="auditList"></div>
+        </div>
+
+        <!-- RIGHT: Energy Audit Result -->
+        <div class="panel">
+          <div class="result-head"><h3>Energy Audit Result <span class="hint" id="resultHint"></span></h3>
+          <button class="btn btn-ghost" style="width:auto;" id="stationSpecsBtn" onclick="openStationSpecsModal()">Station specs</button></div>
+          <div class="stats-row" id="resultStats"></div>
+          <div class="chart-card" style="margin-bottom:16px;">
+            <div class="duty-banner" id="dutyBanner">
+              <div class="duty-box design"><div class="k">Design duty</div><div class="v" id="dutyDesignDuty">—</div></div>
+              <div class="duty-box"><div class="k">Design efficiency</div><div class="v" id="dutyDesignEff">—</div></div>
+              <div class="duty-box"><div class="k">Design power</div><div class="v" id="dutyDesignPower">—</div></div>
+              <div class="duty-box actual"><div class="k" id="dutyActualLabel">Latest actual</div><div class="v" id="dutyActual">—</div></div>
+            </div>
+            <div class="chart-wrap"><canvas id="resultChart"></canvas></div><div class="source-note" id="sourceNote"></div>
+          </div>
+          <div id="resultTableWrap" style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);"></div>
+        </div>
+      </div>
+    </div>
+
+    <div id="viewCurves" class="hidden">
+      <div class="panel" style="margin-bottom:18px;">
+        <h3>Pump Curves <span class="hint">design curve vs actual duty points · 50-60 Hz adjustable</span></h3>
+        <p style="margin:0;font-size:13px;color:var(--text-muted);line-height:1.5;">
+          Manufacturer pump curves (Flow vs Head · Efficiency · Power) affinity-law scaled to any frequency between
+          50-60 Hz with the slider on each card, with measured duty points from every audit plotted as the
+          <strong>Actual</strong> operating point against the scaled <strong>Design</strong> curve. Faint dashed lines
+          are the frequencies actually tested in the source workbook. These replicate the graphs in the
+          <span class="mono">CWD borehole *.xlsx</span> source workbooks.
+        </p>
+      </div>
+      <div class="curve-grid" id="curveGrid"></div>
+    </div>
+
+    <div id="viewUsers" class="hidden"></div>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ===========================================================================
+// CONFIG
+// ===========================================================================
+let GAS_API_URL = localStorage.getItem('agus_energy_audit_api_url') || 'https://script.google.com/macros/s/AKfycby2rW_iCHnIuiNA-kUKlwNclOTW25p4fwWON-JTD9DSGy6ONEf95PXR-4Elgox1vzeAMA/exec';
+
+// ===========================================================================
+// STATE
+// ===========================================================================
+function toggleTheme() {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const next = isDark ? 'light' : 'dark';
+  if (next === 'dark') document.documentElement.setAttribute('data-theme', 'dark');
+  else document.documentElement.removeAttribute('data-theme');
+  try { localStorage.setItem('agus-theme', next); } catch (e) { /* ignore */ }
+  if (typeof refreshChartsForTheme === 'function') refreshChartsForTheme();
+}
+
+let state = {
+  token: sessionStorage.getItem('agus_energy_audit_token') || null,
+  username: sessionStorage.getItem('agus_energy_audit_username') || '',
+  role: sessionStorage.getItem('agus_energy_audit_role') || 'admin',
+  audits: [],
+  sites: [],
+  siteFilter: 'All',
+  users: []
+};
+
+const CHART_FONT = { family: "'IBM Plex Mono', monospace", size: 11 };
+let resultChartInstance = null;
+let lastResultLog = null;
+
+/** Reads a CSS custom property from :root/html so charts follow the active theme. */
+function themeColor(varName, fallback) {
+  const v = getComputedStyle(document.documentElement).getPropertyValue(varName).trim();
+  return v || fallback;
+}
+
+// ===========================================================================
+// API HELPERS
+// ===========================================================================
+async function apiGet(action, params) {
+  const url = new URL(GAS_API_URL);
+  url.searchParams.set('action', action);
+  url.searchParams.set('token', state.token || '');
+  for (const k in (params || {})) url.searchParams.set(k, params[k]);
+  const res = await fetch(url.toString());
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+async function apiPost(action, payload) {
+  // text/plain avoids a CORS preflight against the Apps Script exec endpoint.
+  const res = await fetch(GAS_API_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    body: JSON.stringify(Object.assign({ action: action, token: state.token }, payload || {}))
+  });
+  const data = await res.json();
+  if (!data.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
+// ===========================================================================
+// TOAST
+// ===========================================================================
+function toast(msg, isErr) {
+  const el = document.createElement('div');
+  el.className = 'toast-item' + (isErr ? ' err' : '');
+  el.textContent = msg;
+  document.getElementById('toast').appendChild(el);
+  setTimeout(() => el.remove(), 3800);
+}
+
+// ===========================================================================
+// LOGIN
+// ===========================================================================
+document.getElementById('loginBtn').addEventListener('click', doLogin);
+document.getElementById('loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+
+// Reveal API URL field if not yet configured
+if (!GAS_API_URL || GAS_API_URL.indexOf('PASTE_YOUR') === 0) {
+  document.getElementById('apiConfigBlock').classList.remove('hidden');
+}
+
+async function doLogin() {
+  const apiInput = document.getElementById('apiUrlInput');
+  if (!document.getElementById('apiConfigBlock').classList.contains('hidden') && apiInput.value.trim()) {
+    GAS_API_URL = apiInput.value.trim();
+    localStorage.setItem('agus_energy_audit_api_url', GAS_API_URL);
+  }
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  const errBox = document.getElementById('loginError');
+  errBox.classList.add('hidden');
+  const btn = document.getElementById('loginBtn');
+  btn.disabled = true; btn.textContent = 'Connecting…';
+
+  try {
+    const res = await fetch(GAS_API_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+      body: JSON.stringify({ action: 'login', username: username, password: password })
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.error || 'Login failed');
+    state.token = data.token;
+    state.username = data.username;
+    state.role = data.role || 'admin';
+    sessionStorage.setItem('agus_energy_audit_token', data.token);
+    sessionStorage.setItem('agus_energy_audit_username', data.username);
+    sessionStorage.setItem('agus_energy_audit_role', state.role);
+    await bootApp();
+  } catch (err) {
+    errBox.textContent = err.message || 'Could not reach the server. Check the Apps Script URL.';
+    errBox.classList.remove('hidden');
+    document.getElementById('apiConfigBlock').classList.remove('hidden');
+  } finally {
+    btn.disabled = false; btn.textContent = 'Connect';
+  }
+}
+
+function logout() {
+  if (state.token) apiPost('logout').catch(() => {});
+  sessionStorage.removeItem('agus_energy_audit_token');
+  sessionStorage.removeItem('agus_energy_audit_username');
+  sessionStorage.removeItem('agus_energy_audit_role');
+  state.token = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+}
+
+async function bootApp() {
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'flex';
+  document.getElementById('whoami').textContent = state.username;
+  document.getElementById('usersNavBtn').classList.toggle('hidden', state.role === 'viewer');
+  showAudits();
+  try { await loadAudits(); } catch (err) { toast(err.message, true); }
+  try { await loadCurvesFromServer(); } catch (e) { /* non-fatal */ }
+  if (state.audits.length) renderResult();
+  try { if (state.role !== 'viewer') loadUsers(); } catch (e) { /* non-fatal */ }
+}
+
+function setActiveNav(view) {
+  document.querySelectorAll('.navbtn[data-view]').forEach(b => b.classList.toggle('active', b.dataset.view === view));
+}
+
+// ===========================================================================
+// AUDITS VIEW
+// ===========================================================================
+function showAudits() {
+  setActiveNav('audits');
+  document.getElementById('viewAudits').classList.remove('hidden');
+  document.getElementById('viewUsers').classList.add('hidden');
+  document.getElementById('addAuditBtn').style.display = state.role === 'viewer' ? 'none' : 'inline-flex';
+  document.getElementById('addLegacyAuditBtn').style.display = state.role === 'viewer' ? 'none' : 'inline-flex';
+  if (!state.audits.length) loadAudits();
+  else renderAudits();
+}
+
+async function loadAudits() {
+  const data = await apiGet('audits');
+  state.audits = data.audits || [];
+  const sites = [];
+  state.audits.forEach(a => { if (a.site && sites.indexOf(a.site) === -1) sites.push(a.site); });
+  state.sites = sites;
+  renderAudits();
+}
+
+function renderAudits() {
+  const canEdit = state.role !== 'viewer';
+
+  // Site filter chips
+  const chipBox = document.getElementById('siteChips');
+  chipBox.innerHTML = '';
+  ['All', ...state.sites].forEach(site => {
+    const count = site === 'All' ? state.audits.length : state.audits.filter(a => a.site === site).length;
+    const chip = document.createElement('button');
+    chip.className = 'chip' + (state.siteFilter === site ? ' active' : '');
+    chip.innerHTML = `${site} <span class="count">${count}</span>`;
+    chip.onclick = () => { state.siteFilter = site; renderAudits(); };
+    chipBox.appendChild(chip);
+  });
+
+  let rows = state.audits;
+  if (state.siteFilter !== 'All') rows = rows.filter(a => a.site === state.siteFilter);
+  document.getElementById('historyCount').textContent = `${rows.length} entr${rows.length === 1 ? 'y' : 'ies'}`;
+
+  const list = document.getElementById('auditList');
+  if (!rows.length) {
+    list.innerHTML = `<div class="empty-state"><h3>No audits yet</h3><p>${state.siteFilter === 'All' ? 'Add the first audit for a site.' : 'Nothing for this site filter.'}</p></div>`;
+  } else {
+    list.innerHTML = '';
+    rows.forEach(a => {
+      const chips = buildReadingChips(a);
+      const key = auditKey(a);
+      const isLegacy = !!a.sourceTab;
+      const el = document.createElement('div');
+      el.className = 'log-entry';
+      el.innerHTML = `
+        <div class="row1">
+          <span class="date">${escapeHtml(a.date || '—')}</span>
+          <span class="site">${escapeHtml(a.site || '')}</span>
+          <span class="mono" style="font-size:11px;color:var(--text-faint);">${escapeHtml(a.manufacturer || '')} ${escapeHtml(a.model || '')}</span>
+          ${isLegacy ? '<span class="mono" style="font-size:10.5px;color:var(--text-faint);border:1px solid var(--border);border-radius:5px;padding:1px 6px;">full sheet</span>' : ''}
+          ${canEdit ? `<span class="row-actions">
+            <button onclick="openAuditModal('${escapeAttr(key)}')">Edit</button>
+            ${isLegacy ? '' : `<button class="del" onclick="deleteAudit('${escapeAttr(key)}')">Delete</button>`}
+          </span>` : ''}
+        </div>
+        ${chips ? `<div class="readings">${chips}</div>` : ''}
+        ${a.note ? `<div class="details">${escapeHtml(a.note)}</div>` : ''}
+      `;
+      list.appendChild(el);
+    });
+  }
+
+  renderResult();
+}
+
+function auditKey(a) {
+  return a.sourceTab ? ('legacy:' + a.sourceTab) : ('row:' + a.row);
+}
+
+function round2(v) {
+  return (v === null || v === undefined || isNaN(v)) ? null : Math.round(parseFloat(v) * 100) / 100;
+}
+
+function buildReadingChips(a) {
+  const volts = round2(a.volts), amps = round2(a.amps), pf = round2(a.pf), hz = round2(a.operatingHz),
+        elecKw = round2(a.elecKw), lps = round2(a.lps), head = round2(a.head), eff = round2(a.eff),
+        specific = round2(a.specific), meterKwh = round2(a.meterKwh);
+  const chips = [];
+  if (volts !== null) chips.push(`V <b>${volts}</b>`);
+  if (amps !== null) chips.push(`A <b>${amps}</b>`);
+  if (pf !== null) chips.push(`PF <b>${pf}</b>`);
+  if (hz !== null) chips.push(`Hz <b>${hz}</b>`);
+  if (elecKw !== null) chips.push(`Elec <b>${elecKw} kW</b>`);
+  if (lps !== null) chips.push(`Q <b>${lps} L/s</b>`);
+  if (head !== null) chips.push(`Head <b>${head} m</b>`);
+  if (eff !== null) chips.push(`Eff <b>${eff}%</b>`);
+  if (specific !== null) chips.push(`<b>${specific} kWh/m³</b>`);
+  if (meterKwh !== null) chips.push(`Meter <b>${meterKwh} kWh</b>`);
+  return chips.map(c => `<span class="reading-chip">${c}</span>`).join('');
+}
+
+async function deleteAudit(key) {
+  const existing = state.audits.find(a => auditKey(a) === key);
+  if (!existing || existing.sourceTab) return; // full-sheet audits aren't deletable from here
+  if (!confirm('Delete this audit entry? This clears the row in the sheet.')) return;
+  try {
+    await apiPost('deleteAudit', { row: existing.row });
+    toast('Audit deleted');
+    await loadAudits();
+  } catch (err) { toast(err.message, true); }
+}
+
+// ===========================================================================
+// AUDIT MODAL (raw data input)
+// ===========================================================================
+const AUDIT_FORM_FIELDS = [
+  { key: 'site', label: 'Site', type: 'text', span: 1, placeholder: 'e.g. Baha Baha' },
+  { key: 'date', label: 'Audit date', type: 'date', span: 1 },
+  { key: 'manufacturer', label: 'Manufacturer', type: 'text', span: 1 },
+  { key: 'model', label: 'Model', type: 'text', span: 1 },
+  { key: '__section_motor', label: 'Electrical readings', section: true },
+  { key: 'volts', label: 'Voltage (V)', type: 'number' },
+  { key: 'amps', label: 'Current (A)', type: 'number' },
+  { key: 'pf', label: 'Power factor', type: 'number', step: 0.01 },
+  { key: 'operatingHz', label: 'Operating freq. (Hz)', type: 'number', step: 0.1 },
+  { key: '__section_pump', label: 'Hydraulic readings', section: true },
+  { key: 'lps', label: 'Flow (L/s)', type: 'number' },
+  { key: 'head', label: 'Head (m)', type: 'number' },
+  { key: 'meterKwh', label: 'Energy meter (kWh)', type: 'number' },
+  { key: '__section_notes', label: 'Notes', section: true },
+  { key: 'note', label: 'Notes / remarks', type: 'textarea', span: 2 }
+];
+
+// Fields for the detailed per-year "Baha-Baha <year>" sheets. Deliberately close
+// to AUDIT_FORM_FIELDS but split into the raw components (static/pumping level +
+// discharge pressure) those sheets actually store, since "head" there is a live
+// formula derived from them, not a typed-in number. volts/amps are text, not
+// number, because the sheets sometimes hold three-phase readings written as
+// "463/471/472" — the backend averages those (averageSlashNumbers_) either way.
+const LEGACY_AUDIT_FORM_FIELDS = [
+  { key: 'station', label: 'Station', type: 'text', span: 1, newOnly: true, placeholder: 'e.g. Baha Baha — must match an existing station\'s sheets' },
+  { key: 'year', label: 'Audit year', type: 'number', span: 1, newOnly: true, placeholder: 'e.g. 2027' },
+  { key: 'date', label: 'Audit date/time', type: 'text', span: 1, placeholder: 'e.g. Aug 14, 2027 ; 10:00' },
+  { key: 'manufacturer', label: 'Manufacturer', type: 'text', span: 1 },
+  { key: 'model', label: 'Model', type: 'text', span: 1 },
+  { key: '__section_levels', label: 'Water levels & pressure', section: true },
+  { key: 'staticLevel', label: 'Static water level (m)', type: 'number' },
+  { key: 'pumpingLevel', label: 'Level with pump running (m)', type: 'number' },
+  { key: 'dischargePressure', label: 'Discharge pressure (psi)', type: 'number' },
+  { key: '__section_motor', label: 'Electrical readings', section: true },
+  { key: 'volts', label: 'Voltage (V)', type: 'text' },
+  { key: 'amps', label: 'Current (A)', type: 'text' },
+  { key: 'pf', label: 'Power factor', type: 'number', step: 0.01 },
+  { key: 'operatingHz', label: 'Operating freq. (Hz)', type: 'number', step: 0.1 },
+  { key: '__section_pump', label: 'Flow', section: true },
+  { key: 'lps', label: 'Flow (L/s)', type: 'number' },
+  { key: '__section_notes', label: 'Notes', section: true },
+  { key: 'note', label: 'Notes / remarks', type: 'textarea', span: 2 }
+];
+
+function renderAuditFormFields(fields, existing, opts) {
+  opts = opts || {};
+  let html = '';
+  fields.forEach(f => {
+    if (f.newOnly && existing) return; // e.g. "year" only applies when creating a new legacy sheet
+    if (f.section) {
+      html += `<div class="form-section-label">${escapeHtml(f.label)}</div>`;
+      return;
+    }
+    const val = existing ? (existing[f.key] ?? '') : '';
+    const spanClass = f.span === 2 ? ' span2' : '';
+    const step = f.step ? ` step="${f.step}"` : (f.type === 'number' ? ' step="any"' : '');
+    if (f.type === 'textarea') {
+      html += `<div class="${spanClass}"><label>${escapeHtml(f.label)}</label>
+        <textarea data-key="${f.key}" placeholder="${escapeAttr(f.placeholder || '')}">${escapeHtml(String(val))}</textarea></div>`;
+    } else {
+      html += `<div class="${spanClass}"><label>${escapeHtml(f.label)}</label>
+        <input type="${f.type}" data-key="${f.key}" value="${escapeAttr(String(val))}" placeholder="${escapeAttr(f.placeholder || '')}"${step}></div>`;
+    }
+  });
+  return html;
+}
+
+function readAuditFormValues(backdrop) {
+  const entry = {};
+  backdrop.querySelectorAll('[data-key]').forEach(el => { entry[el.dataset.key] = el.value; });
+  return entry;
+}
+
+function openAuditModal(key) {
+  const existing = key ? state.audits.find(a => auditKey(a) === key) : null;
+  if (existing && existing.sourceTab) { openLegacyAuditModal(key); return; }
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+
+  const fieldsHtml = renderAuditFormFields(AUDIT_FORM_FIELDS, existing);
+  backdrop.innerHTML = `<div class="modal">
+    <h3>${existing ? 'Edit audit entry' : 'New audit entry'}</h3>
+    <div class="form-grid">${fieldsHtml}</div>
+    <div class="modal-actions">
+      <div>${existing ? `<button class="btn btn-danger" id="deleteAuditBtn">Delete entry</button>` : ''}</div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-ghost" id="cancelAuditBtn">Cancel</button>
+        <button class="btn btn-primary" style="width:auto;" id="saveAuditBtn">${existing ? 'Save changes' : 'Add audit'}</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(backdrop);
+
+  backdrop.querySelector('#cancelAuditBtn').onclick = () => backdrop.remove();
+  if (existing) {
+    backdrop.querySelector('#deleteAuditBtn').onclick = async () => {
+      if (!confirm('Delete this audit entry?')) return;
+      try {
+        await apiPost('deleteAudit', { row: existing.row });
+        toast('Audit deleted');
+        backdrop.remove();
+        await loadAudits();
+      } catch (err) { toast(err.message, true); }
+    };
+  }
+
+  backdrop.querySelector('#saveAuditBtn').onclick = async () => {
+    const btn = backdrop.querySelector('#saveAuditBtn');
+    const entry = readAuditFormValues(backdrop);
+    if (!entry.site || !entry.site.trim()) { toast('Site is required', true); return; }
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+    try {
+      if (existing) {
+        await apiPost('updateAudit', { row: existing.row, entry });
+        toast('Audit updated');
+      } else {
+        await apiPost('addAudit', { entry });
+        toast('Audit added');
+      }
+      backdrop.remove();
+      await loadAudits();
+    } catch (err) {
+      toast(err.message, true);
+      btn.disabled = false; btn.textContent = existing ? 'Save changes' : 'Add audit';
+    }
+  };
+}
+
+// Full-sheet editing for the detailed "Baha-Baha <year>" audits. Pass a key to
+// edit an existing one, or call with no argument to create a new year (clones
+// the newest existing sheet as a template on the backend). Head/Phydr/Eff/
+// specific-energy are shown read-only because they're live formulas in the
+// sheet — they recompute from whatever raw readings get saved here.
+function openLegacyAuditModal(key) {
+  const existing = key ? state.audits.find(a => auditKey(a) === key) : null;
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+
+  const fieldsHtml = renderAuditFormFields(LEGACY_AUDIT_FORM_FIELDS, existing);
+  const computed = existing ? `
+    <div class="form-section-label">Calculated (from the sheet's own formulas)</div>
+    <div class="span2" style="display:flex;gap:8px;flex-wrap:wrap;">
+      ${round2(existing.head) !== null ? `<span class="reading-chip">Head <b>${round2(existing.head)} m</b></span>` : ''}
+      ${round2(existing.hydKw) !== null ? `<span class="reading-chip">Hydraulic <b>${round2(existing.hydKw)} kW</b></span>` : ''}
+      ${round2(existing.eff) !== null ? `<span class="reading-chip">Eff <b>${round2(existing.eff)}%</b></span>` : ''}
+      ${round2(existing.specific) !== null ? `<span class="reading-chip"><b>${round2(existing.specific)} kWh/m³</b></span>` : ''}
+    </div>
+    ${existing.headFormulaLive === false ? `<div class="span2" style="font-size:12px;color:var(--text-faint);">Head for this audit was recorded as a fixed value, not derived from the readings above — editing static/pumping level or discharge pressure here won't change it. Edit it directly in the sheet if it needs to change.</div>` : ''}
+  ` : '';
+
+  backdrop.innerHTML = `<div class="modal">
+    <h3>${existing ? `Edit full audit — ${escapeHtml(existing.sourceTab)}` : 'New yearly audit'}</h3>
+    ${!existing ? `<p style="margin:-4px 0 12px;font-size:12.5px;color:var(--text-faint);">Clones the newest existing sheet for that station as a template (same pump-curve formulas already wired up), then fills in the readings below. The station name must match an existing station's sheets exactly — this can't create a station's very first sheet.</p>` : ''}
+    <div class="form-grid">${fieldsHtml}${computed}</div>
+    <div class="modal-actions">
+      <div></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-ghost" id="cancelAuditBtn">Cancel</button>
+        <button class="btn btn-primary" style="width:auto;" id="saveAuditBtn">${existing ? 'Save changes' : 'Create audit'}</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(backdrop);
+
+  backdrop.querySelector('#cancelAuditBtn').onclick = () => backdrop.remove();
+
+  backdrop.querySelector('#saveAuditBtn').onclick = async () => {
+    const btn = backdrop.querySelector('#saveAuditBtn');
+    const entry = readAuditFormValues(backdrop);
+    if (!existing && (!entry.year || !/^\d{4}$/.test(entry.year.trim()))) {
+      toast('Audit year must be a 4-digit year, e.g. 2027', true); return;
+    }
+    if (!existing && (!entry.station || !entry.station.trim())) {
+      toast('Station is required', true); return;
+    }
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+    try {
+      if (existing) {
+        await apiPost('updateLegacyAudit', { sourceTab: existing.sourceTab, entry });
+        toast('Audit updated');
+      } else {
+        await apiPost('addLegacyAudit', { entry });
+        toast('New yearly audit created');
+      }
+      backdrop.remove();
+      await loadAudits();
+    } catch (err) {
+      toast(err.message, true);
+      btn.disabled = false; btn.textContent = existing ? 'Save changes' : 'Create audit';
+    }
+  };
+}
+
+// ===========================================================================
+// ENERGY AUDIT RESULT
+// ===========================================================================
+function numOrNull(v) {
+  return (v === '' || v === null || v === undefined || isNaN(parseFloat(v))) ? null : parseFloat(v);
+}
+
+function fmt(v, d = 2, unit = '') {
+  return v === null || v === undefined || isNaN(v) ? '<span style="color:var(--text-faint);">—</span>' : v.toFixed(d) + unit;
+}
+
+function renderResult() {
+  const specsBtn = document.getElementById('stationSpecsBtn');
+  if (specsBtn) specsBtn.style.display = state.role === 'viewer' ? 'none' : '';
+  let rows = state.audits;
+  if (state.siteFilter !== 'All') rows = rows.filter(a => a.site === state.siteFilter);
+  rows = [...rows].filter(a => a.elecKw !== null || a.hydKw !== null || a.eff !== null || a.specific !== null);
+
+  const stats = document.getElementById('resultStats');
+  const tableWrap = document.getElementById('resultTableWrap');
+
+  function stat(label, val, sub) {
+    return `<div class="stat"><div class="label">${escapeHtml(label)}</div><div class="value">${val}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`;
+  }
+
+  if (!rows.length) {
+    document.getElementById('resultHint').textContent = 'no readings yet';
+    stats.innerHTML = stat('No data', '<span style="font-size:14px;">—</span>', 'Add an audit with electrical or hydraulic readings.');
+    tableWrap.innerHTML = '';
+    renderResultChart([]);
+    updateDutyBanner([]);
+    return;
+  }
+
+  const latest = rows[0];
+  const effAvg = avgVal(rows.map(r => r.eff).filter(v => v !== null));
+  const secAvg = avgVal(rows.map(r => r.specific).filter(v => v !== null));
+  const peakKw = rows.filter(r => r.elecKw !== null).reduce((m, r) => Math.max(m, r.elecKw), null);
+  const worstEff = rows.filter(r => r.eff !== null).reduce((m, r) => m === null ? r.eff : Math.min(m, r.eff), null);
+
+  document.getElementById('resultHint').textContent = `${rows.length} point${rows.length === 1 ? '' : 's'} · ${state.siteFilter === 'All' ? 'all sites' : escapeHtml(state.siteFilter)}`;
+
+  stats.innerHTML =
+    stat('Latest electrical kW', fmt(latest.elecKw, 2), latest.elecKw !== null && latest.volts ? `V ${fmt(latest.volts, 2)} · A ${fmt(latest.amps, 2)} · PF ${fmt(latest.pf, 2)}` : 'no elec. reading') +
+    stat('Latest hydraulic kW', fmt(latest.hydKw, 2), latest.hydKw !== null ? `Q ${fmt(latest.lps, 2, ' L/s')} · Head ${fmt(latest.head, 2, ' m')}` : 'needs flow + head') +
+    stat('Latest efficiency', fmt(latest.eff, 2, ' %'), 'wire-to-water') +
+    stat('Avg efficiency', fmt(effAvg, 2, ' %'), `worst ${fmt(worstEff, 2, ' %')}`) +
+    stat('Avg specific energy', fmt(secAvg, 2, ' kWh/m³'), `peak elec ${fmt(peakKw, 2, ' kW')}`);
+
+  // Table
+  const header = ['Date', 'Site', 'V', 'A', 'PF', 'Hz', 'Elec kW', 'Q (L/s)', 'Head (m)', 'Hyd kW', 'Eff %', 'kWh/m³'];
+  let html = `<table class="summary-table"><thead><tr>${header.map(h => `<th>${h}</th>`).join('')}</tr></thead><tbody>`;
+  rows.forEach(r => {
+    html += `<tr>
+      <td class="mono">${escapeHtml(r.date || '—')}</td>
+      <td>${escapeHtml(r.site || '')}</td>
+      <td class="mono">${fmt(r.volts, 2)}</td>
+      <td class="mono">${fmt(r.amps, 2)}</td>
+      <td class="mono">${fmt(r.pf, 2)}</td>
+      <td class="mono">${fmt(r.operatingHz, 2)}</td>
+      <td class="mono">${fmt(r.elecKw, 2)}</td>
+      <td class="mono">${fmt(r.lps, 2)}</td>
+      <td class="mono">${fmt(r.head, 2)}</td>
+      <td class="mono">${fmt(r.hydKw, 2)}</td>
+      <td class="mono">${fmt(r.eff, 2)}</td>
+      <td class="mono">${fmt(r.specific, 2)}</td>
+    </tr>`;
+  });
+  html += `</tbody></table>`;
+  tableWrap.innerHTML = html;
+
+  renderResultChart(rows);
+  updateDutyBanner(rows);
+}
+
+function avgVal(vals) {
+  if (!vals.length) return null;
+  return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length * 100) / 100;
+}
+
+
+// ===========================================================================
+// BAHA BAHA — EXACT EXCEL PUMP-CURVE DATA
+// Source: user-supplied CWD Baha Baha pump-curve table.
+// These values are intentionally used as supplied; no curve interpolation or
+// affinity-law recalculation is applied to the four tested-frequency curves.
+// ===========================================================================
+const BAHA_BAHA_EXCEL_CURVES = {"50":{"flow":[0,15,30,60,90,120,150],"head":[87,89,87,79,71,62,50],"eff":[0,22,38,62,73,79,74],"power":[15.5,17.1,19,21.2,23.7,26.1,27]},"55":{"flow":[0,17,33,66,99,132,165],"head":[105.3,107.7,105.3,95.6,85.9,75,60.5],"eff":[0,21,37,61,73,78,76],"power":[20.6,22.8,25.3,28.2,31.5,34.7,35.9]},"58":{"flow":[0,17,35,70,104,139,174],"head":[117.1,119.8,117.1,106.3,95.5,83.4,67.3],"eff":[0,21,37,61,73,78,76],"power":[24.2,26.7,29.7,33.1,37,40.7,42.1]}};
+
+// 2026-08 update: eff/power recomputed after fixing the Phydr/Eff.Pump unit bugs in
+// Energy_Audit.xlsx (2022 used /3600 instead of /1000 on an l/s reading; 2026 multiplied
+// pressure by m3/h flow instead of m3/s). Flow/head are unaffected by that fix. "power" here
+// is the actual measured "Power pumpset" figure from each sheet (2023 uses the behind-VFD
+// reading, 46.2 kW, matching the workbook's own Eff.Pump denominator), so eff = Phydr/power
+// exactly for every year, including "design".
+const BAHA_BAHA_EXCEL_DUTY = {"design":{"flow":144,"head":80,"eff":80,"power":45,"label":"Design duty 144 m³/h @ 80 m"},"2022":{"flow":144.0,"head":63.78,"eff":53.03,"power":47.2,"label":"Measured value '22"},"2023":{"flow":154.8,"head":56.43,"eff":51.52,"power":46.2,"label":"Measured value '23"},"2026":{"flow":160.2,"head":67.8,"eff":55.63,"power":53.2,"label":"Measured value '26"}};
+
+function isBahaBahaSite(rows) {
+  return rows.length > 0 && rows.every(r => normalizeSite(r.site || '') === normalizeSite('Baha Baha'));
+}
+
+function excelDutyPointsForRows(rows) {
+  return rows.map((r, index) => {
+    const year = (String(r.date || '').match(/(19|20)\d{2}/) || [''])[0];
+    const exact = BAHA_BAHA_EXCEL_DUTY[year];
+    const flow = exact ? exact.flow : (Number(r.lps) || 0) * 3.6;
+    const head = exact ? exact.head : Number(r.head);
+    const eff = exact ? exact.eff : Number(r.eff);
+    const power = exact ? exact.power : Number(r.elecKw);
+    return {
+      x: flow,
+      y: head,
+      eff,
+      power,
+      date: r.date || '',
+      year,
+      label: exact ? exact.label : `Measured value ${year || index + 1}`
+    };
+  }).filter(p => Number.isFinite(p.x) && Number.isFinite(p.y));
+}
+
+function excelCurveDataset(label, hz, x, y, axis, color, dash, width) {
+  return {
+    label,
+    data: x.map((v, i) => ({ x: v, y: y[i] })),
+    type: 'scatter',
+    showLine: true,
+    fill: false,
+    borderColor: color,
+    backgroundColor: color,
+    borderWidth: width,
+    borderDash: dash,
+    pointRadius: 2,
+    pointHoverRadius: 4,
+    pointHitRadius: 10,
+    tension: 0.22,
+    yAxisID: axis,
+    _curveHz: hz,
+    _isExcelCurve: true
+  };
+}
+
+// Global callout plugin for duty/design markers on ANY "pump performance"
+// chart (Baha Baha or any other borehole): draws a short label + leader line
+// beside every point dataset marked _isDuty, plus engineering guide lines at
+// the design duty point. Each chart supplies its own design point via
+// chart.$designPoint (undefined → Baha Baha's exact workbook constant).
+const excelDutyLabelPlugin = {
+  id: 'bahaBahaExcelDutyLabels',
+  afterDatasetsDraw(chart) {
+    const {ctx} = chart;
+    ctx.save();
+    const labels = [];
+    chart.data.datasets.forEach((ds, datasetIndex) => {
+      if (!ds._isDuty || !ds.data || !ds.data.length) return;
+      const meta = chart.getDatasetMeta(datasetIndex);
+      const pt = meta.data && meta.data[0];
+      if (!pt) return;
+      const info = ds._dutyInfo || {};
+      labels.push({x: pt.x, y: pt.y, text: info.label || ds.label, color: ds.backgroundColor});
+    });
+
+    ctx.font = '10px "IBM Plex Mono", monospace';
+    ctx.textBaseline = 'middle';
+    // Engineering guide lines for the design duty point. The Baha Baha chart
+    // falls back to its exact workbook value; other stations pass their own
+    // design point (from the Pump Details tab) via chart.$designPoint.
+    const designColor = themeColor('--red', '#c8443f');
+    const design = (chart.$designPoint !== undefined)
+      ? chart.$designPoint
+      : BAHA_BAHA_EXCEL_DUTY.design;
+    if (design && design.flow != null && design.head != null) {
+      const xScale = chart.scales.x;
+      const yScale = chart.scales.yHead;
+      const xp = xScale.getPixelForValue(design.flow);
+      const yp = yScale.getPixelForValue(design.head);
+      ctx.save();
+      ctx.setLineDash([4,4]);
+      ctx.strokeStyle = designColor;
+      ctx.globalAlpha = .55;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(xp, chart.chartArea.top); ctx.lineTo(xp, chart.chartArea.bottom); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(chart.chartArea.left, yp); ctx.lineTo(chart.chartArea.right, yp); ctx.stroke();
+      ctx.restore();
+    }
+
+    labels.forEach((p, i) => {
+      const rightSide = p.x < chart.chartArea.left + chart.chartArea.width * 0.68;
+      const dx = rightSide ? 14 : -14;
+      const align = rightSide ? 'left' : 'right';
+      const offsets = [-16, 18, -18, 18];
+      const dy = offsets[i % offsets.length];
+
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + dx, p.y + dy);
+      ctx.stroke();
+
+      ctx.fillStyle = p.color;
+      ctx.textAlign = align;
+      ctx.fillText(p.text, p.x + dx + (rightSide ? 3 : -3), p.y + dy);
+    });
+    ctx.restore();
+  }
+};
+
+if (typeof Chart !== 'undefined' && !Chart.registry.plugins.get('bahaBahaExcelDutyLabels')) {
+  Chart.register(excelDutyLabelPlugin);
+}
+
+function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
+  const headColor = themeColor('--teal', '#0a7f93');
+  const effColor = themeColor('--green', '#2f9e6f');
+  const powerColor = themeColor('--blue', '#2e7da6');
+  const dutyColor = themeColor('--amber', '#c9821e');
+  const designColor = themeColor('--red', '#c8443f');
+
+  const datasets = [];
+
+  // Preserve the Excel ordering: each frequency has Head, Power, Efficiency.
+  Object.keys(BAHA_BAHA_EXCEL_CURVES).map(Number).sort((a,b)=>a-b).forEach((hz, idx) => {
+    const c = BAHA_BAHA_EXCEL_CURVES[hz];
+    const dash = hz === 50 ? [7, 5] : [];
+    const width = hz === 50 ? 1.8 : 2.0;
+    const alpha = hz === 50 ? 'aa' : 'ff';
+
+    datasets.push(excelCurveDataset(
+      `Head ${hz} Hz`,
+      hz, c.flow, c.head, 'yHead',
+      headColor + alpha, dash, width
+    ));
+    datasets.push(excelCurveDataset(
+      `Power ${hz} Hz`,
+      hz, c.flow, c.power, 'yPower',
+      powerColor + alpha, dash, width
+    ));
+    datasets.push(excelCurveDataset(
+      `Efficiency ${hz} Hz`,
+      hz, c.flow, c.eff, 'yEff',
+      effColor + alpha, dash, width
+    ));
+  });
+
+  // Design point: shown only when the source workbook supplies one.
+  const d = BAHA_BAHA_EXCEL_DUTY.design;
+  if (d) {
+    datasets.push({
+      label: 'Design value',
+      data: [{ x: d.flow, y: d.head }],
+      type: 'scatter',
+      showLine: false,
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      pointStyle: 'triangle',
+      backgroundColor: designColor,
+      borderColor: designColor,
+      borderWidth: 1.5,
+      yAxisID: 'yHead',
+      _isDuty: true,
+      _dutyInfo: d
+    });
+  }
+
+  // Actual measured duty points — exact workbook values.
+  excelDutyPointsForRows(rows).forEach((p) => {
+    datasets.push({
+      label: p.label,
+      data: [{ x: p.x, y: p.y }],
+      type: 'scatter',
+      showLine: false,
+      pointRadius: 6,
+      pointHoverRadius: 8,
+      pointStyle: 'rectRot',
+      backgroundColor: dutyColor,
+      borderColor: dutyColor,
+      borderWidth: 1.5,
+      yAxisID: 'yHead',
+      _isDuty: true,
+      _dutyInfo: p
+    });
+  });
+
+  resultChartInstance = new Chart(canvas, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      animation: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        title: {
+          display: true,
+          text: 'CWD Baha Baha — Pump Performance & Duty Points',
+          color: themeColor('--text', '#10343c'),
+          font: { family: 'Space Grotesk', size: 15, weight: '600' },
+          padding: { bottom: 8 }
+        },
+        legend: {
+          position: 'top',
+          labels: {
+            color: themeColor('--text-muted', '#57777d'),
+            font: CHART_FONT,
+            boxWidth: 18,
+            padding: 6,
+            boxHeight: 7,
+            usePointStyle: false,
+            filter: (item, data) => !data.datasets[item.datasetIndex]._isDuty
+          }
+        },
+        tooltip: {
+          titleFont: CHART_FONT,
+          bodyFont: CHART_FONT,
+          callbacks: {
+            label: (ctx) => {
+              const ds = ctx.dataset;
+              const info = ds._dutyInfo;
+              if (info) {
+                return `${ds.label}: ${round2(info.flow)} m³/h · ${round2(info.head)} m · ${round2(info.power)} kW · ${round2(info.eff)}%`;
+              }
+              const unit = ds.yAxisID === 'yEff' ? '%' : ds.yAxisID === 'yPower' ? ' kW' : ' m';
+              return `${ds.label}: ${round2(ctx.parsed.x)} m³/h · ${round2(ctx.parsed.y)}${unit}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          min: 0,
+          max: 180,
+          ticks: { color: tickColor, font: CHART_FONT, stepSize: 20 },
+          grid: { color: gridColor },
+          title: { display: true, text: 'Flow [m³/h]', color: tickColor, font: CHART_FONT }
+        },
+        yHead: {
+          position: 'left',
+          min: 0,
+          max: 130,
+          ticks: { color: tickColor, font: CHART_FONT, stepSize: 10 },
+          grid: { color: gridColor },
+          title: { display: true, text: 'Head [mwc]', color: headColor, font: CHART_FONT }
+        },
+        yPower: {
+          position: 'left',
+          min: 0,
+          max: 55,
+          offset: true,
+          ticks: { color: powerColor, font: CHART_FONT, stepSize: 10 },
+          grid: { display: false },
+          title: { display: true, text: 'Power [kW]', color: powerColor, font: CHART_FONT }
+        },
+        yEff: {
+          position: 'right',
+          min: 0,
+          max: 85,
+          ticks: { color: effColor, font: CHART_FONT, stepSize: 10 },
+          grid: { display: false },
+          title: { display: true, text: 'Efficiency [%]', color: effColor, font: CHART_FONT }
+        }
+      }
+    }
+  });
+}
+
+function renderResultChart(rows) {
+  const canvas = document.getElementById('resultChart');
+  if (!canvas || typeof Chart === 'undefined') return;
+  lastResultLog = rows;
+
+  if (resultChartInstance) {
+    resultChartInstance.destroy();
+    resultChartInstance = null;
+  }
+
+  const tickColor = themeColor('--text-faint', '#8fafb5');
+  const gridColor = themeColor('--border-soft', '#e6f0f1');
+
+  // Baha Baha: reproduce the supplied Excel pump-performance graph exactly
+  // from the supplied 50/55/58/60 Hz values and duty points.
+  if (isBahaBahaSite(rows)) {
+    renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor);
+    return;
+  }
+
+  // Any other station with a "Graph <Borehole>" tab: same style chart but
+  // driven entirely by workbook data (curves + Pump Details).
+  if (matchCurveSite(rows)) {
+    renderPumpPerformanceChart(rows, canvas, tickColor, gridColor);
+    return;
+  }
+
+  // Stations with no pump-curve tab retain the existing Energy Audit trend chart.
+  const teal = themeColor('--teal', '#0a7f93');
+  const amber = themeColor('--amber', '#c9821e');
+  const green = themeColor('--green', '#2f9e6f');
+
+  const chronological = [...rows].reverse();
+  const labels = chronological.map(r => (r.date || '') + (r.site ? ' · ' + r.site : ''));
+
+  resultChartInstance = new Chart(canvas, {
+    type: 'line',
+    data: {
+      labels,
+      datasets: [
+        { label: 'Electrical kW', data: chronological.map(r => r.elecKw), borderColor: teal, backgroundColor: teal + '22', tension: 0.3, spanGaps: true, yAxisID: 'y' },
+        { label: 'Hydraulic kW', data: chronological.map(r => r.hydKw), borderColor: green, backgroundColor: green + '22', borderDash: [5, 4], tension: 0.3, spanGaps: true, yAxisID: 'y' },
+        { label: 'Efficiency %', data: chronological.map(r => r.eff), borderColor: amber, backgroundColor: amber + '22', tension: 0.3, spanGaps: true, yAxisID: 'y1' }
+      ]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { color: themeColor('--text-muted', '#57777d'), font: CHART_FONT, boxWidth: 10, padding: 12, usePointStyle: true } },
+        tooltip: { titleFont: CHART_FONT, bodyFont: CHART_FONT }
+      },
+      scales: {
+        x: { ticks: { color: tickColor, font: CHART_FONT }, grid: { color: gridColor } },
+        y: { position: 'left', ticks: { color: tickColor, font: CHART_FONT }, grid: { color: gridColor }, title: { display: true, text: 'kW', color: tickColor, font: CHART_FONT } },
+        y1: { position: 'right', ticks: { color: tickColor, font: CHART_FONT }, grid: { display: false }, title: { display: true, text: 'Efficiency %', color: tickColor, font: CHART_FONT } }
+      }
+    }
+  });
+}
+
+/** Finds the pump-curve workbook entry for the station in `rows` (first row's
+ * site, normalized), or null when none exists. */
+function matchCurveSite(rows) {
+  if (!liveCurves || !rows || !rows.length) return null;
+  const target = normalizeSite(rows[0].site || '');
+  if (!target) return null;
+  return liveCurves.find(c => {
+    const s = normalizeSite(c.site);
+    return s === target || s.indexOf(target) !== -1 || target.indexOf(s) !== -1;
+  }) || null;
+}
+
+/** Generic "Pump Performance & Duty Points" chart for any station that has a
+ * "Graph <Borehole>" tab. Same visual language as the Baha Baha chart, but
+ * every curve comes from the workbook (via the pumpCurves API) and the design
+ * point comes from the Pump Details tab. Baha Baha itself never reaches this
+ * path — it keeps its exact Excel reproduction. */
+function renderPumpPerformanceChart(rows, canvas, tickColor, gridColor) {
+  const site = matchCurveSite(rows);
+  if (!site) return;
+  const detail = liveDetails.find(d => normalizeSite(d.borehole) === normalizeSite(site.site)) || null;
+
+  const colors = {
+    headC: themeColor('--red', '#c8443f'),
+    effC: themeColor('--green', '#2f9e6f'),
+    powC: themeColor('--blue', '#2e7da6'),
+    dutyC: themeColor('--amber', '#c9821e')
+  };
+
+  const groups = groupCurvesByHz(site.curves);
+  const availableHz = Object.keys(groups).map(Number).sort((a, b) => a - b);
+  const datasets = [];
+
+  if (availableHz.length) {
+    const baseHz = availableHz[0];
+    const base = groups[baseHz];
+    const detailHz = detail && detail.hz != null ? parseFloat(detail.hz) : null;
+    let targetHz = curveHzState[site.id];
+    if (targetHz === undefined) {
+      targetHz = (detailHz && detailHz >= HZ_MIN && detailHz <= HZ_MAX) ? detailHz : availableHz[availableHz.length - 1];
+      targetHz = Math.min(HZ_MAX, Math.max(HZ_MIN, targetHz));
+    }
+
+    availableHz.forEach(hz => {
+      const g = groups[hz];
+      const isBase = hz === baseHz;
+      const style = isBase ? 'base' : 'tested';
+      const tag = isBase ? ' (original)' : '';
+      if (g.head) datasets.push(curveDataset(`Head ${hz} Hz${tag}`, toPoints(g.head), colors.headC, 'yHead', style));
+      if (g.eff) datasets.push(curveDataset(`Efficiency ${hz} Hz${tag}`, toPoints(g.eff), colors.effC, 'yEff', style));
+      if (g.pow) datasets.push(curveDataset(`Power ${hz} Hz${tag}`, toPoints(g.pow), colors.powC, 'yPower', style));
+    });
+
+    const ratio = targetHz / baseHz;
+    const designHead = affinityScale(base.head, ratio, 2);
+    const designEff = affinityScale(base.eff, ratio, 0);
+    const designPow = affinityScale(base.pow, ratio, 3);
+    if (designHead) datasets.push(curveDataset(`Design Head @ ${targetHz.toFixed(1)} Hz`, toPoints(designHead), colors.headC, 'yHead', 'design'));
+    if (designEff) datasets.push(curveDataset(`Design Efficiency @ ${targetHz.toFixed(1)} Hz`, toPoints(designEff), colors.effC, 'yEff', 'design'));
+    if (designPow) datasets.push(curveDataset(`Design Power @ ${targetHz.toFixed(1)} Hz`, toPoints(designPow), colors.powC, 'yPower', 'design'));
+  } else {
+    site.curves.forEach(c => {
+      const col = c.type === 'head' ? colors.headC : c.type === 'eff' ? colors.effC : colors.powC;
+      datasets.push(curveDataset(c.label, c.x.map((x, i) => ({ x, y: c.y[i] })), col,
+        c.type === 'eff' ? 'yEff' : c.type === 'pow' ? 'yPower' : 'yHead', 'tested'));
+    });
+  }
+
+  // Design point (Pump Details tab) — marker + guide lines via the global
+  // duty-label plugin, which reads chart.$designPoint.
+  const designPoint = (detail && detail.designFlow != null && detail.designHead != null)
+    ? { flow: Number(detail.designFlow), head: Number(detail.designHead), eff: detail.designEff, power: detail.designPower, label: 'Design value' }
+    : null;
+  if (designPoint) {
+    datasets.push({
+      label: 'Design value',
+      data: [{ x: designPoint.flow, y: designPoint.head }],
+      type: 'scatter', showLine: false, pointRadius: 6, pointHoverRadius: 8,
+      pointStyle: 'triangle', backgroundColor: colors.headC, borderColor: colors.headC,
+      borderWidth: 1.5, yAxisID: 'yHead', _isDuty: true, _dutyInfo: designPoint
+    });
+  }
+
+  // Actual duty points — from the filtered audit rows shown in this result.
+  rows.forEach(r => {
+    const flow = r.lps != null ? round2(r.lps * 3.6) : null;
+    const head = r.head != null ? round2(r.head) : null;
+    if (flow == null || head == null) return;
+    const label = `${r.date || ''} · ${flow} m³/h @ ${head} m`;
+    datasets.push({
+      label,
+      data: [{ x: flow, y: head }],
+      type: 'scatter', showLine: false, pointRadius: 6, pointHoverRadius: 8,
+      pointStyle: 'rectRot', backgroundColor: colors.dutyC, borderColor: colors.dutyC,
+      borderWidth: 1.5, yAxisID: 'yHead', _isDuty: true,
+      _dutyInfo: { flow, head, eff: r.eff, power: r.elecKw, label }
+    });
+  });
+
+  resultChartInstance = new Chart(canvas, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        title: {
+          display: true,
+          text: `${site.site} — Pump Performance & Duty Points`,
+          color: themeColor('--text', '#10343c'),
+          font: { family: 'Space Grotesk', size: 15, weight: '600' },
+          padding: { bottom: 8 }
+        },
+        legend: {
+          position: 'top',
+          labels: {
+            color: themeColor('--text-muted', '#57777d'),
+            font: CHART_FONT,
+            boxWidth: 18, padding: 6, boxHeight: 7, usePointStyle: false,
+            filter: (item, data) => !data.datasets[item.datasetIndex]._isDuty
+          }
+        },
+        tooltip: {
+          titleFont: CHART_FONT, bodyFont: CHART_FONT,
+          callbacks: {
+            label: (ctx) => {
+              const info = ctx.dataset._dutyInfo;
+              if (info) return `${ctx.dataset.label}: ${round2(info.flow)} m³/h · ${round2(info.head)} m · ${round2(info.power)} kW · ${round2(info.eff)}%`;
+              const unit = ctx.dataset.yAxisID === 'yEff' ? '%' : ctx.dataset.yAxisID === 'yPower' ? ' kW' : ' m';
+              return `${ctx.dataset.label}: ${round2(ctx.parsed.x)} m³/h · ${round2(ctx.parsed.y)}${unit}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear', min: 0, max: site.xMax,
+          ticks: { color: tickColor, font: CHART_FONT },
+          grid: { color: gridColor },
+          title: { display: true, text: 'Flow [m³/h]', color: tickColor, font: CHART_FONT }
+        },
+        yHead: {
+          position: 'left', min: 0, max: site.yMax,
+          ticks: { color: tickColor, font: CHART_FONT },
+          grid: { color: gridColor },
+          title: { display: true, text: 'Head [mwc]', color: colors.headC, font: CHART_FONT }
+        },
+        yPower: {
+          position: 'left', min: 0, max: Math.max(55, site.yMax * 0.5), offset: true,
+          ticks: { color: colors.powC, font: CHART_FONT },
+          grid: { display: false },
+          title: { display: true, text: 'Power [kW]', color: colors.powC, font: CHART_FONT }
+        },
+        yEff: {
+          position: 'right', min: 0, max: 100,
+          ticks: { color: colors.effC, font: CHART_FONT },
+          grid: { display: false },
+          title: { display: true, text: 'Efficiency [%]', color: colors.effC, font: CHART_FONT }
+        }
+      }
+    }
+  });
+
+  resultChartInstance.$designPoint = designPoint;
+  resultChartInstance.update('none'); // draw design guide lines synchronously
+}
+
+/** Fills the duty banner + source note above the result chart. Design values
+ * come from the Pump Details tab (falling back to Baha Baha's exact workbook
+ * constants), "Latest actual" from the newest audit in the filtered rows. */
+function updateDutyBanner(rows) {
+  const el = (id) => document.getElementById(id);
+  const designDuty = el('dutyDesignDuty');
+  if (!designDuty) return;
+
+  const latest = rows && rows.length ? rows[0] : null;
+  const site = rows && rows.length ? matchCurveSite(rows) : null;
+  const isBaha = rows && rows.length ? isBahaBahaSite(rows) : false;
+  const detail = site ? liveDetails.find(d => normalizeSite(d.borehole) === normalizeSite(site.site)) : null;
+
+  let design = null;
+  let sourceText = '';
+  if (detail && detail.designFlow != null) {
+    design = { flow: Number(detail.designFlow), head: Number(detail.designHead), eff: detail.designEff, power: detail.designPower };
+  } else if (isBaha) {
+    design = BAHA_BAHA_EXCEL_DUTY.design;
+  }
+
+  if (design && design.flow != null && design.head != null) {
+    designDuty.textContent = `${fmt(design.flow, 1, ' m³/h')} @ ${fmt(design.head, 1, ' m')}`;
+    el('dutyDesignEff').textContent = fmt(design.eff, 1, ' %');
+    el('dutyDesignPower').textContent = fmt(design.power, 1, ' kW');
+  } else {
+    designDuty.textContent = '—';
+    el('dutyDesignEff').textContent = '—';
+    el('dutyDesignPower').textContent = '—';
+  }
+
+  if (latest) {
+    const q = latest.lps != null ? fmt(latest.lps * 3.6, 1, ' m³/h') : '—';
+    const h = latest.head != null ? fmt(latest.head, 1, ' m') : '—';
+    el('dutyActualLabel').textContent = 'Latest actual' + (latest.date ? ' · ' + latest.date : '');
+    el('dutyActual').textContent = `${q} @ ${h}` + (latest.eff != null ? ` · ${fmt(latest.eff, 1, ' %')}` : '');
+  } else {
+    el('dutyActualLabel').textContent = 'Latest actual';
+    el('dutyActual').textContent = '—';
+  }
+
+  if (site) {
+    sourceText = 'Curve tab: ' + site.source;
+    if (detail && detail.sourceWorkbook) sourceText += ' · Source: ' + detail.sourceWorkbook;
+  } else if (isBaha) {
+    sourceText = 'Source: attached CWD borehole Baha Baha(2).xlsx';
+  }
+  el('sourceNote').textContent = sourceText;
+  el('sourceNote').style.display = sourceText ? '' : 'none';
+}
+
+/** Modal for editing the station's design specs in the workbook's
+ * "Pump Details" tab (upsert via the savePumpDetail action). */
+function openStationSpecsModal() {
+  if (state.role === 'viewer') return;
+  let rows = state.audits;
+  if (state.siteFilter !== 'All') rows = rows.filter(a => a.site === state.siteFilter);
+  const site = matchCurveSite(rows) || null;
+  const detail = site ? liveDetails.find(d => normalizeSite(d.borehole) === normalizeSite(site.site)) : null;
+  const siteName = site ? site.site : (rows[0] ? rows[0].site : '');
+  const v = (field) => detail && detail[field] != null ? escapeAttr(detail[field]) : '';
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+
+  backdrop.innerHTML = `<div class="modal">
+    <h3>Station specs — ${escapeHtml(siteName) || '?'}</h3>
+    <div class="form-grid">
+      <div><label>Borehole name</label><input type="text" id="spBorehole" value="${escapeAttr(siteName)}"></div>
+      <div><label>Manufacturer</label><input type="text" id="spMfr" value="${v('manufacturer')}"></div>
+      <div><label>Model</label><input type="text" id="spModel" value="${v('model')}"></div>
+      <div><label>Design flow [m³/h]</label><input type="text" id="spFlow" value="${v('designFlow')}"></div>
+      <div><label>Design head [m]</label><input type="text" id="spHead" value="${v('designHead')}"></div>
+      <div><label>Design efficiency [%]</label><input type="text" id="spEff" value="${v('designEff')}"></div>
+      <div><label>Design power [kW]</label><input type="text" id="spPower" value="${v('designPower')}"></div>
+      <div><label>Operating Hz</label><input type="text" id="spHz" value="${v('hz')}"></div>
+      <div><label>Source workbook</label><input type="text" id="spSrc" value="${v('sourceWorkbook')}"></div>
+    </div>
+    <div class="modal-actions">
+      <div></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-ghost" id="cancelSpBtn">Cancel</button>
+        <button class="btn btn-primary" style="width:auto;" id="saveSpBtn">Save</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(backdrop);
+
+  backdrop.querySelector('#cancelSpBtn').onclick = () => backdrop.remove();
+  backdrop.querySelector('#saveSpBtn').onclick = async () => {
+    const btn = backdrop.querySelector('#saveSpBtn');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+    try {
+      await apiPost('savePumpDetail', { entry: {
+        borehole: backdrop.querySelector('#spBorehole').value.trim(),
+        manufacturer: backdrop.querySelector('#spMfr').value.trim(),
+        model: backdrop.querySelector('#spModel').value.trim(),
+        designFlow: backdrop.querySelector('#spFlow').value.trim(),
+        designHead: backdrop.querySelector('#spHead').value.trim(),
+        designEff: backdrop.querySelector('#spEff').value.trim(),
+        designPower: backdrop.querySelector('#spPower').value.trim(),
+        hz: backdrop.querySelector('#spHz').value.trim(),
+        sourceWorkbook: backdrop.querySelector('#spSrc').value.trim()
+      }});
+      toast('Station specs saved');
+      backdrop.remove();
+      await loadCurvesFromServer();
+      renderResult();
+    } catch (err) {
+      toast(err.message, true);
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  };
+}
+
+function refreshChartsForTheme() {
+  if (resultChartInstance && lastResultLog) renderResultChart(lastResultLog);
+  if (liveCurves) renderCurves();
+}
+
+// ===========================================================================
+// USERS
+// ===========================================================================
+async function loadUsers() {
+  const data = await apiGet('users');
+  state.users = data.users || [];
+  if (document.getElementById('viewUsers').classList.contains('hidden')) return;
+  renderUsers();
+}
+
+function showUsers() {
+  setActiveNav('users');
+  document.getElementById('viewAudits').classList.add('hidden');
+  document.getElementById('viewUsers').classList.remove('hidden');
+  renderUsers();
+}
+
+function renderUsers() {
+  const box = document.getElementById('viewUsers');
+  const rows = state.users.map(u => `
+    <tr>
+      <td style="font-weight:600;color:var(--text);">${escapeHtml(u.username)}</td>
+      <td><span class="role-pill ${u.role}">${escapeHtml(u.role)}</span></td>
+      <td>${u.active ? '<span style="color:var(--green);">Active</span>' : '<span style="color:var(--red);">Disabled</span>'}</td>
+      <td><button class="btn btn-ghost" style="padding:5px 10px;font-size:11.5px;" onclick="openUserModal(${u.row})">Edit</button></td>
+    </tr>`).join('');
+
+  box.innerHTML = `
+    <div class="users-toolbar">
+      <h2 style="font-family:var(--display);margin:0;font-size:18px;">User Accounts</h2>
+      <button class="btn btn-primary" style="width:auto;" onclick="openUserModal()">+ Add user</button>
+    </div>
+    <div style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);">
+      <table class="summary-table"><thead><tr><th>Username</th><th>Role</th><th>Status</th><th></th></tr></thead>
+      <tbody>${rows || '<tr><td colspan="4" style="color:var(--text-faint);">No users yet.</td></tr>'}</tbody></table>
+    </div>`;
+}
+
+function openUserModal(row) {
+  const existing = row ? state.users.find(u => u.row === row) : null;
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+
+  backdrop.innerHTML = `<div class="modal">
+    <h3>${existing ? 'Edit user' : 'Add user'}</h3>
+    <div class="form-grid">
+      <div><label>Username</label><input type="text" id="uName" value="${existing ? escapeAttr(existing.username) : ''}" ${existing ? 'readonly' : ''}></div>
+      <div><label>Password ${existing ? '(blank = keep)' : ''}</label><input type="text" id="uPass" value=""></div>
+      <div><label>Role</label><select id="uRole">
+        <option value="admin" ${existing && existing.role === 'admin' ? 'selected' : ''}>admin</option>
+        <option value="viewer" ${existing && existing.role === 'viewer' ? 'selected' : ''}>viewer</option>
+      </select></div>
+      <div><label>Active</label><select id="uActive">
+        <option value="true" ${!existing || existing.active ? 'selected' : ''}>Active</option>
+        <option value="false" ${existing && !existing.active ? 'selected' : ''}>Disabled</option>
+      </select></div>
+    </div>
+    <div class="modal-actions">
+      <div>${existing && existing.username !== state.username ? `<button class="btn btn-danger" id="delUserBtn">Delete</button>` : ''}</div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-ghost" id="cancelUserBtn">Cancel</button>
+        <button class="btn btn-primary" style="width:auto;" id="saveUserBtn">${existing ? 'Save' : 'Add user'}</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(backdrop);
+
+  backdrop.querySelector('#cancelUserBtn').onclick = () => backdrop.remove();
+  if (backdrop.querySelector('#delUserBtn')) {
+    backdrop.querySelector('#delUserBtn').onclick = async () => {
+      if (!confirm('Delete this user?')) return;
+      try {
+        await apiPost('deleteUser', { row: existing.row });
+        toast('User deleted');
+        backdrop.remove();
+        await loadUsers();
+      } catch (err) { toast(err.message, true); }
+    };
+  }
+
+  backdrop.querySelector('#saveUserBtn').onclick = async () => {
+    const name = backdrop.querySelector('#uName').value.trim();
+    if (!name) { toast('Username is required', true); return; }
+    const btn = backdrop.querySelector('#saveUserBtn');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+    try {
+      if (existing) {
+        await apiPost('updateUser', {
+          row: existing.row,
+          role: backdrop.querySelector('#uRole').value,
+          active: backdrop.querySelector('#uActive').value === 'true',
+          password: backdrop.querySelector('#uPass').value
+        });
+        toast('User updated');
+      } else {
+        await apiPost('addUser', {
+          username: name,
+          password: backdrop.querySelector('#uPass').value || 'changeme123',
+          role: backdrop.querySelector('#uRole').value
+        });
+        toast('User added');
+      }
+      backdrop.remove();
+      await loadUsers();
+    } catch (err) {
+      toast(err.message, true);
+      btn.disabled = false; btn.textContent = existing ? 'Save' : 'Add user';
+    }
+  };
+}
+
+// ===========================================================================
+// PUMP CURVES — loaded from the backend's pumpCurves action (reads every
+// "Graph <Borehole>" tab in the workbook). No data is embedded here so the
+// workbook stays the single source of truth.
+//
+// Each borehole's measured curve family (one Head/Efficiency/Power set per
+// tested Hz) is used as a base for the pump affinity laws so the "Design"
+// curve can be scaled to any frequency in the 50-60 Hz band the fleet
+// actually runs at: Q2=Q1*(N2/N1), H2=H1*(N2/N1)^2, P2=P1*(N2/N1)^3,
+// efficiency held constant (standard affinity-law approximation near BEP).
+// The audit-derived duty points are plotted unscaled as "Actual" markers.
+// ===========================================================================
+let curveChartInstances = {};
+let liveCurves = null;
+let liveDetails = [];
+let curveHzState = {}; // site.id -> currently selected slider Hz
+
+const HZ_MIN = 50, HZ_MAX = 60;
+
+/** Groups a site's flat curves[] (labelled "Head 55 Hz" etc.) by frequency. */
+function groupCurvesByHz(curves) {
+  const groups = {}; // hz(number) -> { head:{x,y}, eff:{x,y}, pow:{x,y} }
+  curves.forEach(c => {
+    const m = /(\d+(?:\.\d+)?)\s*Hz\s*$/i.exec(c.label || '');
+    const hz = m ? parseFloat(m[1]) : null;
+    if (hz === null) return; // no frequency tag on this curve, skip for scaling
+    if (!groups[hz]) groups[hz] = {};
+    groups[hz][c.type] = { x: c.x, y: c.y };
+  });
+  return groups;
+}
+
+/** Affinity-scales one {x,y} series from fromHz to toHz. yPower: 2=head, 3=power, 0=efficiency. */
+function affinityScale(series, ratio, yPower) {
+  if (!series) return null;
+  return {
+    x: series.x.map(v => v === null || v === undefined ? null : Math.round(v * ratio * 100) / 100),
+    y: series.y.map(v => v === null || v === undefined ? null : Math.round(v * Math.pow(ratio, yPower) * 1000) / 1000)
+  };
+}
+
+function toPoints(series) {
+  if (!series) return [];
+  return series.x.map((x, i) => ({ x, y: series.y[i] })).filter(p => p.x !== null && p.y !== null);
+}
+
+/** Adds an alpha channel to a "#rrggbb" color. alpha in [0,1]. */
+function hexAlpha(hex, alpha) {
+  if (!hex || hex[0] !== '#' || hex.length < 7) return hex;
+  const a = Math.round(Math.max(0, Math.min(1, alpha)) * 255).toString(16).padStart(2, '0');
+  return hex.slice(0, 7) + a;
+}
+
+function showCurves() {
+  setActiveNav('curves');
+  document.getElementById('viewAudits').classList.add('hidden');
+  document.getElementById('viewUsers').classList.add('hidden');
+  document.getElementById('viewCurves').classList.remove('hidden');
+  renderCurves();
+  loadCurvesFromServer();
+}
+
+async function loadCurvesFromServer() {
+  try {
+    const [curvesData, detailsData] = await Promise.all([
+      apiGet('pumpCurves'),
+      apiGet('pumpDetails').catch(() => ({ details: [] }))
+    ]);
+    liveCurves = (curvesData.curves && curvesData.curves.length) ? curvesData.curves : [];
+    liveDetails = (detailsData.details || []);
+    renderCurves();
+  } catch (e) {
+    liveCurves = null;
+    renderCurves();
+  }
+}
+
+function pumpDetailFor(site) {
+  const target = normalizeSite(site);
+  const d = liveDetails.find(x => normalizeSite(x.borehole) === target);
+  if (!d) return '';
+  const parts = [];
+  if (d.manufacturer) parts.push(d.manufacturer);
+  if (d.model) parts.push(d.model);
+  if (d.hz) parts.push(d.hz + ' Hz');
+  return parts.length ? parts.join(' · ') : '';
+}
+
+function renderCurves() {
+  const grid = document.getElementById('curveGrid');
+  if (!grid || typeof Chart === 'undefined') return;
+
+  if (!liveCurves) {
+    grid.innerHTML = `<div class="empty-state"><h3>Loading pump curves…</h3><p>Fetching from the workbook.</p></div>`;
+    return;
+  }
+
+  grid.innerHTML = '';
+  if (!liveCurves.length) {
+    grid.innerHTML = `<div class="empty-state"><h3>No pump curves found</h3><p>Add a <span class="mono">Graph &lt;Borehole&gt;</span> tab to the workbook with Flow / Head (and Efficiency / Power / Freq) columns.</p></div>`;
+    return;
+  }
+
+  liveCurves.forEach(site => {
+    const groups = groupCurvesByHz(site.curves);
+    const availableHz = Object.keys(groups).map(Number).sort((a, b) => a - b);
+    const hasHz = availableHz.length > 0;
+
+    const card = document.createElement('div');
+    card.className = 'panel curve-card';
+    const spec = pumpDetailFor(site.site);
+
+    let sliderHtml = '';
+    if (hasHz) {
+      const detail = liveDetails.find(x => normalizeSite(x.borehole) === normalizeSite(site.site));
+      const detailHz = detail && detail.hz ? parseFloat(detail.hz) : null;
+      let defaultHz = curveHzState[site.id];
+      if (defaultHz === undefined) {
+        defaultHz = (detailHz && detailHz >= HZ_MIN && detailHz <= HZ_MIN + 10) ? detailHz : availableHz[availableHz.length - 1];
+        defaultHz = Math.min(HZ_MAX, Math.max(HZ_MIN, defaultHz));
+      }
+      curveHzState[site.id] = defaultHz;
+      const pct = ((defaultHz - HZ_MIN) / (HZ_MAX - HZ_MIN)) * 100;
+      sliderHtml = `
+        <div class="curve-hz-control">
+          <label for="hz-${site.id}">Design freq.</label>
+          <input type="range" id="hz-${site.id}" min="${HZ_MIN}" max="${HZ_MAX}" step="0.5" value="${defaultHz}"
+                 style="--pct:${pct}%"
+                 oninput="onCurveHzInput('${site.id}', this)">
+          <span class="hz-val" id="hz-val-${site.id}">${defaultHz.toFixed(1)} Hz</span>
+          <span class="hz-note" id="hz-note-${site.id}"></span>
+        </div>`;
+    }
+
+    card.innerHTML = `
+      <h3>${escapeHtml(site.site)}</h3>
+      <div class="meta">${spec ? escapeHtml(spec) + ' · ' : ''}${escapeHtml(site.source)} · ${(site.points || []).length} duty point(s)</div>
+      ${sliderHtml}
+      <div class="curve-legend-note">
+        <span><i style="background:var(--red);"></i>Head <span style="opacity:.7">(bold = selected Hz)</span></span>
+        <span><i style="background:var(--green);"></i>Efficiency</span>
+        <span><i style="background:var(--blue);"></i>Power</span>
+        <span><i style="background:var(--amber);height:8px;width:8px;border-radius:2px;transform:rotate(45deg);"></i>Actual duty point (audit)</span>
+      </div>
+      <div class="curve-chart-wrap"><canvas id="curve-${site.id}"></canvas></div>`;
+    grid.appendChild(card);
+    buildCurveChart(site, groups, availableHz, curveHzState[site.id]);
+  });
+}
+
+function onCurveHzInput(siteId, input) {
+  const hz = parseFloat(input.value);
+  curveHzState[siteId] = hz;
+  const pct = ((hz - HZ_MIN) / (HZ_MAX - HZ_MIN)) * 100;
+  input.style.setProperty('--pct', pct + '%');
+  const valEl = document.getElementById('hz-val-' + siteId);
+  if (valEl) valEl.textContent = hz.toFixed(1) + ' Hz';
+  const site = (liveCurves || []).find(s => s.id === siteId);
+  if (!site) return;
+  const groups = groupCurvesByHz(site.curves);
+  const availableHz = Object.keys(groups).map(Number).sort((a, b) => a - b);
+  updateCurveChart(site, groups, availableHz, hz);
+}
+
+/** Picks the measured Hz curve closest to the target — no longer used for base selection (base
+ * is always the lowest tested Hz) but kept available for future use. */
+function nearestHz(availableHz, target) {
+  return availableHz.reduce((best, hz) => Math.abs(hz - target) < Math.abs(best - target) ? hz : best, availableHz[0]);
+}
+
+function curveDataset(label, points, color, axis, style) {
+  // style: 'base' (dashed, faint - the original untransposed curve), 'tested' (solid, medium - a
+  // transposed/measured curve at a tested Hz), 'design' (bold, opaque - the slider's selection)
+  const cfg = {
+    base:   { width: 1.5, dash: [5, 4], alpha: 0.55, radius: 0 },
+    tested: { width: 2,   dash: [],     alpha: 0.8,  radius: 0 },
+    design: { width: 3.5, dash: [],     alpha: 1,    radius: 3 }
+  }[style];
+  return {
+    label, data: points, type: 'scatter', showLine: true, fill: false,
+    borderColor: hexAlpha(color, cfg.alpha), backgroundColor: color,
+    borderWidth: cfg.width, borderDash: cfg.dash, tension: 0.3,
+    pointRadius: cfg.radius, pointHitRadius: 8, yAxisID: axis,
+    order: style === 'design' ? 1 : 3, _isRef: style !== 'design'
+  };
+}
+
+function buildDatasets(site, groups, availableHz, targetHz, colors) {
+  const { headC, effC, powC, dutyC } = colors;
+  const datasets = [];
+
+  if (availableHz.length) {
+    // Always transpose from the lowest tested frequency (the "original new pump" curve), exactly
+    // like the workbook's Q2=Q1*(N2/N1), H2=H1*(N2/N1)^2, P2=P1*(N2/N1)^3 tables.
+    const baseHz = availableHz[0];
+    const base = groups[baseHz];
+
+    // The full tested family: base curve dashed & faint, every other tested Hz solid, prominence
+    // ramping up with frequency — matching the workbook's "50 Hz dashed / 55,58,60 Hz solid" look.
+    availableHz.forEach((hz, idx) => {
+      const g = groups[hz];
+      const isBase = hz === baseHz;
+      const style = isBase ? 'base' : 'tested';
+      const tag = isBase ? ' (original)' : '';
+      if (g.head) datasets.push(curveDataset(`Head ${hz} Hz${tag}`, toPoints(g.head), headC, 'yHead', style));
+      if (g.eff) datasets.push(curveDataset(`Efficiency ${hz} Hz${tag}`, toPoints(g.eff), effC, 'yEff', style));
+      if (g.pow) datasets.push(curveDataset(`Power ${hz} Hz${tag}`, toPoints(g.pow), powC, 'yPow', style));
+    });
+
+    // Bold highlighted "Design" curve, affinity-scaled from the base curve to the slider's frequency.
+    const ratio = targetHz / baseHz;
+    const designHead = affinityScale(base.head, ratio, 2);
+    const designEff = affinityScale(base.eff, ratio, 0);
+    const designPow = affinityScale(base.pow, ratio, 3);
+    if (designHead) datasets.push({ ...curveDataset(`Design Head @ ${targetHz.toFixed(1)} Hz`, toPoints(designHead), headC, 'yHead', 'design'), _isRef: false });
+    if (designEff) datasets.push({ ...curveDataset(`Design Efficiency @ ${targetHz.toFixed(1)} Hz`, toPoints(designEff), effC, 'yEff', 'design'), _isRef: true });
+    if (designPow) datasets.push({ ...curveDataset(`Design Power @ ${targetHz.toFixed(1)} Hz`, toPoints(designPow), powC, 'yPow', 'design'), _isRef: true });
+  } else {
+    // No frequency tags on this borehole's curves — draw them as originally given.
+    site.curves.forEach(c => {
+      const col = c.type === 'head' ? headC : c.type === 'eff' ? effC : powC;
+      datasets.push(curveDataset(c.label, c.x.map((x, i) => ({ x, y: c.y[i] })), col,
+        c.type === 'eff' ? 'yEff' : c.type === 'pow' ? 'yPow' : 'yHead', 'tested'));
+    });
+  }
+
+  // Actual duty points from the audit log — always plotted unscaled, amber, matching the
+  // workbook's orange "measured value" markers, with a short callout tag ("58 Hz '26")
+  // drawn beside each one by the dutyCalloutPlugin, mirroring the workbook's chart labels.
+  site.points.forEach((p, idx) => {
+    const yy = p.date ? String(p.date).slice(2, 4) : '';
+    const tag = (p.hz ? p.hz + ' Hz ' : '') + (yy ? `'${yy}` : '');
+    datasets.push({
+      label: 'Actual: ' + p.label, data: [{ x: p.x, y: p.y }], type: 'scatter',
+      showLine: false, fill: false, borderColor: dutyC, backgroundColor: hexAlpha(dutyC, 0.85),
+      pointRadius: 6, pointStyle: 'rectRot', pointHitRadius: 10, yAxisID: 'yHead', order: 0,
+      _isDuty: true, _calloutTag: tag, _calloutSide: idx % 2 === 0 ? 1 : -1
+    });
+  });
+
+  return datasets;
+}
+
+// Draws a short "<Hz> Hz 'YY" tag beside each Actual duty-point marker, like the workbook's
+// chart callouts, without needing an extra Chart.js plugin dependency.
+const dutyCalloutPlugin = {
+  id: 'dutyCalloutPlugin',
+  afterDatasetsDraw(chart) {
+    const { ctx } = chart;
+    chart.data.datasets.forEach((ds, i) => {
+      if (!ds._isDuty || !ds._calloutTag) return;
+      const meta = chart.getDatasetMeta(i);
+      const pt = meta.data && meta.data[0];
+      if (!pt || pt.x === undefined) return;
+      const dx = (ds._calloutSide || 1) * 10;
+      ctx.save();
+      ctx.font = "10px 'IBM Plex Mono', monospace";
+      ctx.fillStyle = ds.borderColor;
+      ctx.textAlign = dx > 0 ? 'left' : 'right';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(ds._calloutTag, pt.x + dx, pt.y - 10);
+      ctx.restore();
+    });
+  }
+};
+if (typeof Chart !== 'undefined' && !Chart.registry.plugins.get('dutyCalloutPlugin')) {
+  Chart.register(dutyCalloutPlugin);
+}
+
+function buildCurveChart(site, groups, availableHz, targetHz) {
+  const canvas = document.getElementById('curve-' + site.id);
+  if (!canvas) return;
+  if (curveChartInstances[site.id]) curveChartInstances[site.id].destroy();
+
+  const tickColor = themeColor('--text-faint', '#8fafb5');
+  const gridColor = themeColor('--border-soft', '#e6f0f1');
+  const colors = {
+    headC: themeColor('--red', '#c8443f'),
+    effC: themeColor('--green', '#2f9e6f'),
+    powC: themeColor('--blue', '#2e7da6'),
+    dutyC: themeColor('--amber', '#c9821e')
+  };
+
+  const datasets = buildDatasets(site, groups, availableHz, targetHz, colors);
+
+  const noteEl = document.getElementById('hz-note-' + site.id);
+  if (noteEl && availableHz.length) {
+    noteEl.textContent = `transposed from the original ${availableHz[0]} Hz curve via pump affinity laws`;
+  }
+
+  curveChartInstances[site.id] = new Chart(canvas, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        legend: { position: 'top', labels: { color: themeColor('--text-muted', '#57777d'), font: CHART_FONT, boxWidth: 10, padding: 10, usePointStyle: true, filter: (item) => !item.dataset._isDuty && !item.dataset._isRef } },
+        tooltip: { titleFont: CHART_FONT, bodyFont: CHART_FONT, callbacks: { label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.x} m³/h, ${ctx.parsed.y}${ctx.dataset.yAxisID === 'yEff' ? ' %' : ctx.dataset.yAxisID === 'yPow' ? ' kW' : ' mwc'}` } }
+      },
+      scales: {
+        x: { type: 'linear', max: site.xMax, ticks: { color: tickColor, font: CHART_FONT }, grid: { color: gridColor }, title: { display: true, text: 'Flow [m³/h]', color: tickColor, font: CHART_FONT } },
+        yHead: { position: 'left', min: 0, max: site.yMax, ticks: { color: tickColor, font: CHART_FONT }, grid: { color: gridColor }, title: { display: true, text: 'Head [mwc]', color: tickColor, font: CHART_FONT } },
+        yEff: { position: 'right', min: 0, max: 100, ticks: { color: tickColor, font: CHART_FONT }, grid: { display: false }, title: { display: true, text: 'Efficiency [%]', color: tickColor, font: CHART_FONT } },
+        yPow: { position: 'right', min: 0, max: Math.max(60, site.yMax * 0.5), ticks: { color: tickColor, font: CHART_FONT }, grid: { display: false }, title: { display: true, text: 'Power [kW]', color: tickColor, font: CHART_FONT }, offset: true }
+      }
+    }
+  });
+}
+
+function updateCurveChart(site, groups, availableHz, targetHz) {
+  const chart = curveChartInstances[site.id];
+  if (!chart) { buildCurveChart(site, groups, availableHz, targetHz); return; }
+  const colors = {
+    headC: themeColor('--red', '#c8443f'),
+    effC: themeColor('--green', '#2f9e6f'),
+    powC: themeColor('--blue', '#2e7da6'),
+    dutyC: themeColor('--amber', '#c9821e')
+  };
+  chart.data.datasets = buildDatasets(site, groups, availableHz, targetHz, colors);
+  chart.update('none');
+  const noteEl = document.getElementById('hz-note-' + site.id);
+  if (noteEl && availableHz.length) {
+    noteEl.textContent = `transposed from the original ${availableHz[0]} Hz curve via pump affinity laws`;
+  }
+}
+
+// ===========================================================================
+// UTIL
+// ===========================================================================
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+}
+function escapeAttr(str) { return escapeHtml(str); }
+function normalizeSite(s) {
+  // Kept in sync with Code.gs's normalizeSite (fixed 2026-08): hyphens/underscores
+  // fold to spaces before stripping, so "Baha-Baha" (a "Graph *" tab name) and
+  // "Baha Baha" (the site field on audits) normalize identically.
+  return String(s || '').toUpperCase().replace(/[-_]/g, ' ').replace(/[^A-Z0-9 ]/g, '').replace(/\s+/g, ' ').trim();
+}
+
+// Auto-login if a session token already exists in this tab.
+(function autoLogin() {
+  if (!state.token) return;
+  bootApp().catch(err => { logout(); });
+})();
+</script>
+</body>
+</html>
