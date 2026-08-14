@@ -241,6 +241,7 @@
 
   .chart-wrap{position:relative;height:505px;}
   .duty-banner{display:grid;grid-template-columns:1.15fr 1fr 1fr 1fr;gap:8px;margin:0 0 10px;}
+  .result-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
   .duty-box{background:var(--bg-card);border:1px solid var(--border-soft);border-radius:8px;padding:8px 10px;min-width:0;}
   .duty-box .k{font:9.5px var(--mono);letter-spacing:.07em;text-transform:uppercase;color:var(--text-faint);white-space:nowrap;}
   .duty-box .v{font:700 15px var(--mono);color:var(--text);margin-top:3px;white-space:nowrap;}
@@ -423,16 +424,17 @@
 
         <!-- RIGHT: Energy Audit Result -->
         <div class="panel">
-          <h3>Energy Audit Result <span class="hint" id="resultHint"></span></h3>
+          <div class="result-head"><h3>Energy Audit Result <span class="hint" id="resultHint"></span></h3>
+          <button class="btn btn-ghost" style="width:auto;" id="stationSpecsBtn" onclick="openStationSpecsModal()">Station specs</button></div>
           <div class="stats-row" id="resultStats"></div>
           <div class="chart-card" style="margin-bottom:16px;">
-            <div class="duty-banner">
-              <div class="duty-box design"><div class="k">Design duty</div><div class="v">144 m³/h @ 80 m</div></div>
-              <div class="duty-box"><div class="k">Design efficiency</div><div class="v">80 %</div></div>
-              <div class="duty-box"><div class="k">Design power</div><div class="v">45 kW</div></div>
-              <div class="duty-box actual"><div class="k">2026 actual</div><div class="v">160.2 m³/h @ 67.8 m</div></div>
+            <div class="duty-banner" id="dutyBanner">
+              <div class="duty-box design"><div class="k">Design duty</div><div class="v" id="dutyDesignDuty">—</div></div>
+              <div class="duty-box"><div class="k">Design efficiency</div><div class="v" id="dutyDesignEff">—</div></div>
+              <div class="duty-box"><div class="k">Design power</div><div class="v" id="dutyDesignPower">—</div></div>
+              <div class="duty-box actual"><div class="k" id="dutyActualLabel">Latest actual</div><div class="v" id="dutyActual">—</div></div>
             </div>
-            <div class="chart-wrap"><canvas id="resultChart"></canvas></div><div class="source-note">Pump curves and audit points: attached CWD borehole Baha Baha(2).xlsx · Graph Baha-Baha / Audits sheets</div>
+            <div class="chart-wrap"><canvas id="resultChart"></canvas></div><div class="source-note" id="sourceNote"></div>
           </div>
           <div id="resultTableWrap" style="overflow-x:auto;border:1px solid var(--border);border-radius:var(--radius);"></div>
         </div>
@@ -599,6 +601,8 @@ async function bootApp() {
   document.getElementById('usersNavBtn').classList.toggle('hidden', state.role === 'viewer');
   showAudits();
   try { await loadAudits(); } catch (err) { toast(err.message, true); }
+  try { await loadCurvesFromServer(); } catch (e) { /* non-fatal */ }
+  if (state.audits.length) renderResult();
   try { if (state.role !== 'viewer') loadUsers(); } catch (e) { /* non-fatal */ }
 }
 
@@ -929,6 +933,8 @@ function fmt(v, d = 2, unit = '') {
 }
 
 function renderResult() {
+  const specsBtn = document.getElementById('stationSpecsBtn');
+  if (specsBtn) specsBtn.style.display = state.role === 'viewer' ? 'none' : '';
   let rows = state.audits;
   if (state.siteFilter !== 'All') rows = rows.filter(a => a.site === state.siteFilter);
   rows = [...rows].filter(a => a.elecKw !== null || a.hydKw !== null || a.eff !== null || a.specific !== null);
@@ -945,6 +951,7 @@ function renderResult() {
     stats.innerHTML = stat('No data', '<span style="font-size:14px;">—</span>', 'Add an audit with electrical or hydraulic readings.');
     tableWrap.innerHTML = '';
     renderResultChart([]);
+    updateDutyBanner([]);
     return;
   }
 
@@ -986,6 +993,7 @@ function renderResult() {
   tableWrap.innerHTML = html;
 
   renderResultChart(rows);
+  updateDutyBanner(rows);
 }
 
 function avgVal(vals) {
@@ -1016,7 +1024,7 @@ function isBahaBahaSite(rows) {
 
 function excelDutyPointsForRows(rows) {
   return rows.map((r, index) => {
-    const year = String(r.date || '').slice(0, 4);
+    const year = (String(r.date || '').match(/(19|20)\d{2}/) || [''])[0];
     const exact = BAHA_BAHA_EXCEL_DUTY[year];
     const flow = exact ? exact.flow : (Number(r.lps) || 0) * 3.6;
     const head = exact ? exact.head : Number(r.head);
@@ -1053,6 +1061,76 @@ function excelCurveDataset(label, hz, x, y, axis, color, dash, width) {
     _curveHz: hz,
     _isExcelCurve: true
   };
+}
+
+// Global callout plugin for duty/design markers on ANY "pump performance"
+// chart (Baha Baha or any other borehole): draws a short label + leader line
+// beside every point dataset marked _isDuty, plus engineering guide lines at
+// the design duty point. Each chart supplies its own design point via
+// chart.$designPoint (undefined → Baha Baha's exact workbook constant).
+const excelDutyLabelPlugin = {
+  id: 'bahaBahaExcelDutyLabels',
+  afterDatasetsDraw(chart) {
+    const {ctx} = chart;
+    ctx.save();
+    const labels = [];
+    chart.data.datasets.forEach((ds, datasetIndex) => {
+      if (!ds._isDuty || !ds.data || !ds.data.length) return;
+      const meta = chart.getDatasetMeta(datasetIndex);
+      const pt = meta.data && meta.data[0];
+      if (!pt) return;
+      const info = ds._dutyInfo || {};
+      labels.push({x: pt.x, y: pt.y, text: info.label || ds.label, color: ds.backgroundColor});
+    });
+
+    ctx.font = '10px "IBM Plex Mono", monospace';
+    ctx.textBaseline = 'middle';
+    // Engineering guide lines for the design duty point. The Baha Baha chart
+    // falls back to its exact workbook value; other stations pass their own
+    // design point (from the Pump Details tab) via chart.$designPoint.
+    const designColor = themeColor('--red', '#c8443f');
+    const design = (chart.$designPoint !== undefined)
+      ? chart.$designPoint
+      : BAHA_BAHA_EXCEL_DUTY.design;
+    if (design && design.flow != null && design.head != null) {
+      const xScale = chart.scales.x;
+      const yScale = chart.scales.yHead;
+      const xp = xScale.getPixelForValue(design.flow);
+      const yp = yScale.getPixelForValue(design.head);
+      ctx.save();
+      ctx.setLineDash([4,4]);
+      ctx.strokeStyle = designColor;
+      ctx.globalAlpha = .55;
+      ctx.lineWidth = 1;
+      ctx.beginPath(); ctx.moveTo(xp, chart.chartArea.top); ctx.lineTo(xp, chart.chartArea.bottom); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(chart.chartArea.left, yp); ctx.lineTo(chart.chartArea.right, yp); ctx.stroke();
+      ctx.restore();
+    }
+
+    labels.forEach((p, i) => {
+      const rightSide = p.x < chart.chartArea.left + chart.chartArea.width * 0.68;
+      const dx = rightSide ? 14 : -14;
+      const align = rightSide ? 'left' : 'right';
+      const offsets = [-16, 18, -18, 18];
+      const dy = offsets[i % offsets.length];
+
+      ctx.strokeStyle = p.color;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x + dx, p.y + dy);
+      ctx.stroke();
+
+      ctx.fillStyle = p.color;
+      ctx.textAlign = align;
+      ctx.fillText(p.text, p.x + dx + (rightSide ? 3 : -3), p.y + dy);
+    });
+    ctx.restore();
+  }
+};
+
+if (typeof Chart !== 'undefined' && !Chart.registry.plugins.get('bahaBahaExcelDutyLabels')) {
+  Chart.register(excelDutyLabelPlugin);
 }
 
 function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
@@ -1126,66 +1204,6 @@ function renderBahaBahaExcelChart(rows, canvas, tickColor, gridColor) {
       _dutyInfo: p
     });
   });
-
-  const excelDutyLabelPlugin = {
-    id: 'bahaBahaExcelDutyLabels',
-    afterDatasetsDraw(chart) {
-      const {ctx} = chart;
-      ctx.save();
-      const labels = [];
-      chart.data.datasets.forEach((ds, datasetIndex) => {
-        if (!ds._isDuty || !ds.data || !ds.data.length) return;
-        const meta = chart.getDatasetMeta(datasetIndex);
-        const pt = meta.data && meta.data[0];
-        if (!pt) return;
-        const info = ds._dutyInfo || {};
-        labels.push({x: pt.x, y: pt.y, text: info.label || ds.label, color: ds.backgroundColor});
-      });
-
-      ctx.font = '10px "IBM Plex Mono", monospace';
-      ctx.textBaseline = 'middle';
-      // Engineering guide lines for the design duty point.
-      const design = BAHA_BAHA_EXCEL_DUTY.design;
-      if (design) {
-        const xScale = chart.scales.x;
-        const yScale = chart.scales.yHead;
-        const xp = xScale.getPixelForValue(design.flow);
-        const yp = yScale.getPixelForValue(design.head);
-        ctx.save();
-        ctx.setLineDash([4,4]);
-        ctx.strokeStyle = designColor;
-        ctx.globalAlpha = .55;
-        ctx.lineWidth = 1;
-        ctx.beginPath(); ctx.moveTo(xp, chart.chartArea.top); ctx.lineTo(xp, chart.chartArea.bottom); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(chart.chartArea.left, yp); ctx.lineTo(chart.chartArea.right, yp); ctx.stroke();
-        ctx.restore();
-      }
-
-      labels.forEach((p, i) => {
-        const rightSide = p.x < chart.chartArea.left + chart.chartArea.width * 0.68;
-        const dx = rightSide ? 14 : -14;
-        const align = rightSide ? 'left' : 'right';
-        const offsets = [-16, 18, -18, 18];
-        const dy = offsets[i % offsets.length];
-
-        ctx.strokeStyle = p.color;
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x + dx, p.y + dy);
-        ctx.stroke();
-
-        ctx.fillStyle = p.color;
-        ctx.textAlign = align;
-        ctx.fillText(p.text, p.x + dx + (rightSide ? 3 : -3), p.y + dy);
-      });
-      ctx.restore();
-    }
-  };
-
-  if (!Chart.registry.plugins.get('bahaBahaExcelDutyLabels')) {
-    Chart.register(excelDutyLabelPlugin);
-  }
 
   resultChartInstance = new Chart(canvas, {
     type: 'scatter',
@@ -1290,7 +1308,14 @@ function renderResultChart(rows) {
     return;
   }
 
-  // Other sites retain the existing Energy Audit trend chart.
+  // Any other station with a "Graph <Borehole>" tab: same style chart but
+  // driven entirely by workbook data (curves + Pump Details).
+  if (matchCurveSite(rows)) {
+    renderPumpPerformanceChart(rows, canvas, tickColor, gridColor);
+    return;
+  }
+
+  // Stations with no pump-curve tab retain the existing Energy Audit trend chart.
   const teal = themeColor('--teal', '#0a7f93');
   const amber = themeColor('--amber', '#c9821e');
   const green = themeColor('--green', '#2f9e6f');
@@ -1322,6 +1347,289 @@ function renderResultChart(rows) {
       }
     }
   });
+}
+
+/** Finds the pump-curve workbook entry for the station in `rows` (first row's
+ * site, normalized), or null when none exists. */
+function matchCurveSite(rows) {
+  if (!liveCurves || !rows || !rows.length) return null;
+  const target = normalizeSite(rows[0].site || '');
+  if (!target) return null;
+  return liveCurves.find(c => {
+    const s = normalizeSite(c.site);
+    return s === target || s.indexOf(target) !== -1 || target.indexOf(s) !== -1;
+  }) || null;
+}
+
+/** Generic "Pump Performance & Duty Points" chart for any station that has a
+ * "Graph <Borehole>" tab. Same visual language as the Baha Baha chart, but
+ * every curve comes from the workbook (via the pumpCurves API) and the design
+ * point comes from the Pump Details tab. Baha Baha itself never reaches this
+ * path — it keeps its exact Excel reproduction. */
+function renderPumpPerformanceChart(rows, canvas, tickColor, gridColor) {
+  const site = matchCurveSite(rows);
+  if (!site) return;
+  const detail = liveDetails.find(d => normalizeSite(d.borehole) === normalizeSite(site.site)) || null;
+
+  const colors = {
+    headC: themeColor('--red', '#c8443f'),
+    effC: themeColor('--green', '#2f9e6f'),
+    powC: themeColor('--blue', '#2e7da6'),
+    dutyC: themeColor('--amber', '#c9821e')
+  };
+
+  const groups = groupCurvesByHz(site.curves);
+  const availableHz = Object.keys(groups).map(Number).sort((a, b) => a - b);
+  const datasets = [];
+
+  if (availableHz.length) {
+    const baseHz = availableHz[0];
+    const base = groups[baseHz];
+    const detailHz = detail && detail.hz != null ? parseFloat(detail.hz) : null;
+    let targetHz = curveHzState[site.id];
+    if (targetHz === undefined) {
+      targetHz = (detailHz && detailHz >= HZ_MIN && detailHz <= HZ_MAX) ? detailHz : availableHz[availableHz.length - 1];
+      targetHz = Math.min(HZ_MAX, Math.max(HZ_MIN, targetHz));
+    }
+
+    availableHz.forEach(hz => {
+      const g = groups[hz];
+      const isBase = hz === baseHz;
+      const style = isBase ? 'base' : 'tested';
+      const tag = isBase ? ' (original)' : '';
+      if (g.head) datasets.push(curveDataset(`Head ${hz} Hz${tag}`, toPoints(g.head), colors.headC, 'yHead', style));
+      if (g.eff) datasets.push(curveDataset(`Efficiency ${hz} Hz${tag}`, toPoints(g.eff), colors.effC, 'yEff', style));
+      if (g.pow) datasets.push(curveDataset(`Power ${hz} Hz${tag}`, toPoints(g.pow), colors.powC, 'yPower', style));
+    });
+
+    const ratio = targetHz / baseHz;
+    const designHead = affinityScale(base.head, ratio, 2);
+    const designEff = affinityScale(base.eff, ratio, 0);
+    const designPow = affinityScale(base.pow, ratio, 3);
+    if (designHead) datasets.push(curveDataset(`Design Head @ ${targetHz.toFixed(1)} Hz`, toPoints(designHead), colors.headC, 'yHead', 'design'));
+    if (designEff) datasets.push(curveDataset(`Design Efficiency @ ${targetHz.toFixed(1)} Hz`, toPoints(designEff), colors.effC, 'yEff', 'design'));
+    if (designPow) datasets.push(curveDataset(`Design Power @ ${targetHz.toFixed(1)} Hz`, toPoints(designPow), colors.powC, 'yPower', 'design'));
+  } else {
+    site.curves.forEach(c => {
+      const col = c.type === 'head' ? colors.headC : c.type === 'eff' ? colors.effC : colors.powC;
+      datasets.push(curveDataset(c.label, c.x.map((x, i) => ({ x, y: c.y[i] })), col,
+        c.type === 'eff' ? 'yEff' : c.type === 'pow' ? 'yPower' : 'yHead', 'tested'));
+    });
+  }
+
+  // Design point (Pump Details tab) — marker + guide lines via the global
+  // duty-label plugin, which reads chart.$designPoint.
+  const designPoint = (detail && detail.designFlow != null && detail.designHead != null)
+    ? { flow: Number(detail.designFlow), head: Number(detail.designHead), eff: detail.designEff, power: detail.designPower, label: 'Design value' }
+    : null;
+  if (designPoint) {
+    datasets.push({
+      label: 'Design value',
+      data: [{ x: designPoint.flow, y: designPoint.head }],
+      type: 'scatter', showLine: false, pointRadius: 6, pointHoverRadius: 8,
+      pointStyle: 'triangle', backgroundColor: colors.headC, borderColor: colors.headC,
+      borderWidth: 1.5, yAxisID: 'yHead', _isDuty: true, _dutyInfo: designPoint
+    });
+  }
+
+  // Actual duty points — from the filtered audit rows shown in this result.
+  rows.forEach(r => {
+    const flow = r.lps != null ? round2(r.lps * 3.6) : null;
+    const head = r.head != null ? round2(r.head) : null;
+    if (flow == null || head == null) return;
+    const label = `${r.date || ''} · ${flow} m³/h @ ${head} m`;
+    datasets.push({
+      label,
+      data: [{ x: flow, y: head }],
+      type: 'scatter', showLine: false, pointRadius: 6, pointHoverRadius: 8,
+      pointStyle: 'rectRot', backgroundColor: colors.dutyC, borderColor: colors.dutyC,
+      borderWidth: 1.5, yAxisID: 'yHead', _isDuty: true,
+      _dutyInfo: { flow, head, eff: r.eff, power: r.elecKw, label }
+    });
+  });
+
+  resultChartInstance = new Chart(canvas, {
+    type: 'scatter',
+    data: { datasets },
+    options: {
+      responsive: true, maintainAspectRatio: false, animation: false,
+      interaction: { mode: 'nearest', intersect: false },
+      plugins: {
+        title: {
+          display: true,
+          text: `${site.site} — Pump Performance & Duty Points`,
+          color: themeColor('--text', '#10343c'),
+          font: { family: 'Space Grotesk', size: 15, weight: '600' },
+          padding: { bottom: 8 }
+        },
+        legend: {
+          position: 'top',
+          labels: {
+            color: themeColor('--text-muted', '#57777d'),
+            font: CHART_FONT,
+            boxWidth: 18, padding: 6, boxHeight: 7, usePointStyle: false,
+            filter: (item, data) => !data.datasets[item.datasetIndex]._isDuty
+          }
+        },
+        tooltip: {
+          titleFont: CHART_FONT, bodyFont: CHART_FONT,
+          callbacks: {
+            label: (ctx) => {
+              const info = ctx.dataset._dutyInfo;
+              if (info) return `${ctx.dataset.label}: ${round2(info.flow)} m³/h · ${round2(info.head)} m · ${round2(info.power)} kW · ${round2(info.eff)}%`;
+              const unit = ctx.dataset.yAxisID === 'yEff' ? '%' : ctx.dataset.yAxisID === 'yPower' ? ' kW' : ' m';
+              return `${ctx.dataset.label}: ${round2(ctx.parsed.x)} m³/h · ${round2(ctx.parsed.y)}${unit}`;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear', min: 0, max: site.xMax,
+          ticks: { color: tickColor, font: CHART_FONT },
+          grid: { color: gridColor },
+          title: { display: true, text: 'Flow [m³/h]', color: tickColor, font: CHART_FONT }
+        },
+        yHead: {
+          position: 'left', min: 0, max: site.yMax,
+          ticks: { color: tickColor, font: CHART_FONT },
+          grid: { color: gridColor },
+          title: { display: true, text: 'Head [mwc]', color: colors.headC, font: CHART_FONT }
+        },
+        yPower: {
+          position: 'left', min: 0, max: Math.max(55, site.yMax * 0.5), offset: true,
+          ticks: { color: colors.powC, font: CHART_FONT },
+          grid: { display: false },
+          title: { display: true, text: 'Power [kW]', color: colors.powC, font: CHART_FONT }
+        },
+        yEff: {
+          position: 'right', min: 0, max: 100,
+          ticks: { color: colors.effC, font: CHART_FONT },
+          grid: { display: false },
+          title: { display: true, text: 'Efficiency [%]', color: colors.effC, font: CHART_FONT }
+        }
+      }
+    }
+  });
+
+  resultChartInstance.$designPoint = designPoint;
+  resultChartInstance.update('none'); // draw design guide lines synchronously
+}
+
+/** Fills the duty banner + source note above the result chart. Design values
+ * come from the Pump Details tab (falling back to Baha Baha's exact workbook
+ * constants), "Latest actual" from the newest audit in the filtered rows. */
+function updateDutyBanner(rows) {
+  const el = (id) => document.getElementById(id);
+  const designDuty = el('dutyDesignDuty');
+  if (!designDuty) return;
+
+  const latest = rows && rows.length ? rows[0] : null;
+  const site = rows && rows.length ? matchCurveSite(rows) : null;
+  const isBaha = rows && rows.length ? isBahaBahaSite(rows) : false;
+  const detail = site ? liveDetails.find(d => normalizeSite(d.borehole) === normalizeSite(site.site)) : null;
+
+  let design = null;
+  let sourceText = '';
+  if (detail && detail.designFlow != null) {
+    design = { flow: Number(detail.designFlow), head: Number(detail.designHead), eff: detail.designEff, power: detail.designPower };
+  } else if (isBaha) {
+    design = BAHA_BAHA_EXCEL_DUTY.design;
+  }
+
+  if (design && design.flow != null && design.head != null) {
+    designDuty.textContent = `${fmt(design.flow, 1, ' m³/h')} @ ${fmt(design.head, 1, ' m')}`;
+    el('dutyDesignEff').textContent = fmt(design.eff, 1, ' %');
+    el('dutyDesignPower').textContent = fmt(design.power, 1, ' kW');
+  } else {
+    designDuty.textContent = '—';
+    el('dutyDesignEff').textContent = '—';
+    el('dutyDesignPower').textContent = '—';
+  }
+
+  if (latest) {
+    const q = latest.lps != null ? fmt(latest.lps * 3.6, 1, ' m³/h') : '—';
+    const h = latest.head != null ? fmt(latest.head, 1, ' m') : '—';
+    el('dutyActualLabel').textContent = 'Latest actual' + (latest.date ? ' · ' + latest.date : '');
+    el('dutyActual').textContent = `${q} @ ${h}` + (latest.eff != null ? ` · ${fmt(latest.eff, 1, ' %')}` : '');
+  } else {
+    el('dutyActualLabel').textContent = 'Latest actual';
+    el('dutyActual').textContent = '—';
+  }
+
+  if (site) {
+    sourceText = 'Curve tab: ' + site.source;
+    if (detail && detail.sourceWorkbook) sourceText += ' · Source: ' + detail.sourceWorkbook;
+  } else if (isBaha) {
+    sourceText = 'Source: attached CWD borehole Baha Baha(2).xlsx';
+  }
+  el('sourceNote').textContent = sourceText;
+  el('sourceNote').style.display = sourceText ? '' : 'none';
+}
+
+/** Modal for editing the station's design specs in the workbook's
+ * "Pump Details" tab (upsert via the savePumpDetail action). */
+function openStationSpecsModal() {
+  if (state.role === 'viewer') return;
+  let rows = state.audits;
+  if (state.siteFilter !== 'All') rows = rows.filter(a => a.site === state.siteFilter);
+  const site = matchCurveSite(rows) || null;
+  const detail = site ? liveDetails.find(d => normalizeSite(d.borehole) === normalizeSite(site.site)) : null;
+  const siteName = site ? site.site : (rows[0] ? rows[0].site : '');
+  const v = (field) => detail && detail[field] != null ? escapeAttr(detail[field]) : '';
+
+  const backdrop = document.createElement('div');
+  backdrop.className = 'modal-backdrop';
+  backdrop.onclick = (e) => { if (e.target === backdrop) backdrop.remove(); };
+
+  backdrop.innerHTML = `<div class="modal">
+    <h3>Station specs — ${escapeHtml(siteName) || '?'}</h3>
+    <div class="form-grid">
+      <div><label>Borehole name</label><input type="text" id="spBorehole" value="${escapeAttr(siteName)}"></div>
+      <div><label>Manufacturer</label><input type="text" id="spMfr" value="${v('manufacturer')}"></div>
+      <div><label>Model</label><input type="text" id="spModel" value="${v('model')}"></div>
+      <div><label>Design flow [m³/h]</label><input type="text" id="spFlow" value="${v('designFlow')}"></div>
+      <div><label>Design head [m]</label><input type="text" id="spHead" value="${v('designHead')}"></div>
+      <div><label>Design efficiency [%]</label><input type="text" id="spEff" value="${v('designEff')}"></div>
+      <div><label>Design power [kW]</label><input type="text" id="spPower" value="${v('designPower')}"></div>
+      <div><label>Operating Hz</label><input type="text" id="spHz" value="${v('hz')}"></div>
+      <div><label>Source workbook</label><input type="text" id="spSrc" value="${v('sourceWorkbook')}"></div>
+    </div>
+    <div class="modal-actions">
+      <div></div>
+      <div style="display:flex;gap:10px;">
+        <button class="btn btn-ghost" id="cancelSpBtn">Cancel</button>
+        <button class="btn btn-primary" style="width:auto;" id="saveSpBtn">Save</button>
+      </div>
+    </div>
+  </div>`;
+  document.body.appendChild(backdrop);
+
+  backdrop.querySelector('#cancelSpBtn').onclick = () => backdrop.remove();
+  backdrop.querySelector('#saveSpBtn').onclick = async () => {
+    const btn = backdrop.querySelector('#saveSpBtn');
+    btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
+    try {
+      await apiPost('savePumpDetail', { entry: {
+        borehole: backdrop.querySelector('#spBorehole').value.trim(),
+        manufacturer: backdrop.querySelector('#spMfr').value.trim(),
+        model: backdrop.querySelector('#spModel').value.trim(),
+        designFlow: backdrop.querySelector('#spFlow').value.trim(),
+        designHead: backdrop.querySelector('#spHead').value.trim(),
+        designEff: backdrop.querySelector('#spEff').value.trim(),
+        designPower: backdrop.querySelector('#spPower').value.trim(),
+        hz: backdrop.querySelector('#spHz').value.trim(),
+        sourceWorkbook: backdrop.querySelector('#spSrc').value.trim()
+      }});
+      toast('Station specs saved');
+      backdrop.remove();
+      await loadCurvesFromServer();
+      renderResult();
+    } catch (err) {
+      toast(err.message, true);
+      btn.disabled = false; btn.textContent = 'Save';
+    }
+  };
 }
 
 function refreshChartsForTheme() {
