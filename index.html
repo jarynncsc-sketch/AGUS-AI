@@ -1764,6 +1764,9 @@ function openUserModal(row) {
 // ===========================================================================
 let curveChartInstances = {};
 let liveCurves = null;
+
+/** CWD_CURVE_FALLBACK: verified fallback from the normalized Pump Curves sheet. */
+const CWD_CURVE_FALLBACK = {"Lower Lagang":{"id":"lower-lagang","site":"Lower Lagang","source":"Pump Curves","curves":[{"type":"head","label":"Head 60 Hz","x":[0.0,12.0,24.0,36.0,48.0,60.0],"y":[176.0,169.0,158.0,144.0,128.0,103.0]},{"type":"eff","label":"Efficiency 60 Hz","x":[0.0,12.0,24.0,36.0,48.0,60.0],"y":[0.0,25.0,46.0,58.0,61.0,56.0]},{"type":"pow","label":"Power 60 Hz","x":[0.0,12.0,24.0,36.0,48.0,60.0],"y":[0.0,22.1052,22.46347826086957,24.35586206896552,27.44655737704919,30.07232142857143]},{"type":"head","label":"Head 55 Hz","x":[0.0,11.0,22.0,33.0,44.0,55.0],"y":[147.8888888888889,142.0069444444444,132.7638888888889,121.0,107.5555555555555,86.5486111111111]},{"type":"eff","label":"Efficiency 55 Hz","x":[0.0,11.0,22.0,33.0,44.0,55.0],"y":[0.0,24.0,46.0,58.0,61.0,56.0]},{"type":"pow","label":"Power 55 Hz","x":[0.0,11.0,22.0,33.0,44.0,55.0],"y":[0.0,17.02663263888889,17.30259812801932,18.76021551724138,21.14083788706739,23.16334480406746]}],"points":[],"xMax":64.80000000000001,"yMax":197.12},"Ocaña":{"id":"oca-a","site":"Ocaña","source":"Pump Curves","curves":[{"type":"head","label":"Head 60 Hz","x":[0.0,15.0,30.0,45.0,60.0,70.0],"y":[130.0,122.0,110.0,95.0,74.0,51.0]},{"type":"eff","label":"Efficiency 60 Hz","x":[0.0,15.0,30.0,45.0,60.0,70.0],"y":[0.0,34.0,52.0,59.0,58.0,49.0]},{"type":"pow","label":"Power 60 Hz","x":[0.0,15.0,30.0,45.0,60.0,70.0],"y":[13.0,15.0,17.4,19.3,20.0,19.2]},{"type":"head","label":"Head 55 Hz","x":[0.0,13.75,27.5,41.25,55.0,64.16666666666666],"y":[109.2361111111111,102.5138888888889,92.43055555555554,79.82638888888889,62.18055555555555,42.85416666666666]},{"type":"eff","label":"Efficiency 55 Hz","x":[0.0,13.75,27.5,41.25,55.0,64.16666666666666],"y":[0.0,33.245,51.68103448275863,60.35945595854923,60.495,50.66796875000001]},{"type":"pow","label":"Power 55 Hz","x":[0.0,13.75,27.5,41.25,55.0,64.16666666666666],"y":[10.01331018518519,11.55381944444444,13.40243055555555,14.86591435185185,15.40509259259259,14.78888888888888]},{"type":"head","label":"Head 51.3 Hz","x":[0.0,12.825,25.65,38.475,51.3,59.85],"y":[95.03325,89.18505,80.41275,69.447375,54.09585,37.282275]},{"type":"eff","label":"Efficiency 51.3 Hz","x":[0.0,12.825,25.65,38.475,51.3,59.85],"y":[0.0,33.245,51.68103448275863,60.35945595854923,60.49499999999999,50.66796875]},{"type":"pow","label":"Power 51.3 Hz","x":[0.0,12.825,25.65,38.475,51.3,59.85],"y":[8.125342875,9.375395625,10.875458925,12.0630090375,12.5005275,12.0005064]}],"points":[],"xMax":75.60000000000001,"yMax":145.60000000000002},"Proper Perrelos":{"id":"proper-perrelos","site":"Proper Perrelos","source":"Pump Curves","curves":[{"type":"head","label":"Head 60 Hz","x":[0.0,12.0,24.0,36.0,48.0,60.0,72.0,84.0],"y":[103.0,101.0,97.0,88.0,79.0,69.0,58.0,45.0]},{"type":"eff","label":"Efficiency 60 Hz","x":[0.0,12.0,24.0,36.0,48.0,60.0,72.0,84.0],"y":[0.0,24.0,46.0,58.0,61.0,59.0,56.5,53.0]},{"type":"pow","label":"Power 60 Hz","x":[0.0,12.0,24.0,36.0,48.0,60.0,72.0,84.0],"y":[0.0,13.76125,13.79086956521739,14.88413793103448,16.93967213114754,19.12118644067797,20.14088495575222,19.43490566037736]},{"type":"head","label":"Head 55 Hz","x":[0.0,11.0,22.0,33.0,44.0,55.0,66.0,77.0],"y":[86.5486111111111,84.86805555555554,81.50694444444443,73.94444444444443,66.38194444444443,57.97916666666666,48.73611111111111,37.8125]},{"type":"eff","label":"Efficiency 55 Hz","x":[0.0,11.0,22.0,33.0,44.0,55.0,66.0,77.0],"y":[0.0,24.0,46.0,57.99999999999999,61.00000000000001,59.00000000000002,56.49999999999999,52.99999999999999]},{"type":"pow","label":"Power 55 Hz","x":[0.0,11.0,22.0,33.0,44.0,55.0,66.0,77.0],"y":[0.0,10.59966652199074,10.62248112922705,11.46457614942529,13.0478608834244,14.7281823799435,15.5136098820059,14.96982606132076]}],"points":[],"xMax":90.72,"yMax":115.36000000000001}};
 let liveDetails = [];
 let curveHzState = {}; // site.id -> currently selected slider Hz
 
@@ -1818,7 +1821,16 @@ async function loadCurvesFromServer() {
       apiGet('pumpCurves'),
       apiGet('pumpDetails').catch(() => ({ details: [] }))
     ]);
-    liveCurves = (curvesData.curves && curvesData.curves.length) ? curvesData.curves : [];
+    const backendCurves = (curvesData.curves && curvesData.curves.length) ? curvesData.curves : [];
+    // The three affected stations have verified normalized curve data in the
+    // combined workbook. Merge it only when the backend did not return that
+    // station, so the backend remains the live source of truth when available.
+    const merged = backendCurves.slice();
+    Object.values(CWD_CURVE_FALLBACK).forEach(fb => {
+      const exists = merged.some(c => normalizeSite(c.site) === normalizeSite(fb.site));
+      if (!exists) merged.push(fb);
+    });
+    liveCurves = merged;
     liveDetails = (detailsData.details || []);
     renderCurves();
   } catch (e) {
