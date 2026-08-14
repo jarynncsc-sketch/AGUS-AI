@@ -744,6 +744,7 @@ const AUDIT_FORM_FIELDS = [
 // number, because the sheets sometimes hold three-phase readings written as
 // "463/471/472" — the backend averages those (averageSlashNumbers_) either way.
 const LEGACY_AUDIT_FORM_FIELDS = [
+  { key: 'station', label: 'Station', type: 'text', span: 1, newOnly: true, placeholder: 'e.g. Baha Baha — must match an existing station\'s sheets' },
   { key: 'year', label: 'Audit year', type: 'number', span: 1, newOnly: true, placeholder: 'e.g. 2027' },
   { key: 'date', label: 'Audit date/time', type: 'text', span: 1, placeholder: 'e.g. Aug 14, 2027 ; 10:00' },
   { key: 'manufacturer', label: 'Manufacturer', type: 'text', span: 1 },
@@ -874,8 +875,8 @@ function openLegacyAuditModal(key) {
   ` : '';
 
   backdrop.innerHTML = `<div class="modal">
-    <h3>${existing ? `Edit full audit — ${escapeHtml(existing.sourceTab)}` : 'New yearly audit (Baha Baha)'}</h3>
-    ${!existing ? `<p style="margin:-4px 0 12px;font-size:12.5px;color:var(--text-faint);">Creates a new "Baha-Baha &lt;year&gt;" sheet with the full pump-curve formulas already wired up, then fills in the readings below.</p>` : ''}
+    <h3>${existing ? `Edit full audit — ${escapeHtml(existing.sourceTab)}` : 'New yearly audit'}</h3>
+    ${!existing ? `<p style="margin:-4px 0 12px;font-size:12.5px;color:var(--text-faint);">Clones the newest existing sheet for that station as a template (same pump-curve formulas already wired up), then fills in the readings below. The station name must match an existing station's sheets exactly — this can't create a station's very first sheet.</p>` : ''}
     <div class="form-grid">${fieldsHtml}${computed}</div>
     <div class="modal-actions">
       <div></div>
@@ -894,6 +895,9 @@ function openLegacyAuditModal(key) {
     const entry = readAuditFormValues(backdrop);
     if (!existing && (!entry.year || !/^\d{4}$/.test(entry.year.trim()))) {
       toast('Audit year must be a 4-digit year, e.g. 2027', true); return;
+    }
+    if (!existing && (!entry.station || !entry.station.trim())) {
+      toast('Station is required', true); return;
     }
     btn.disabled = true; btn.innerHTML = '<span class="spinner"></span>';
     try {
